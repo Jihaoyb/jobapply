@@ -12,11 +12,12 @@ Run a single active tab with capture, dequeue/resume and atomic pre-submit check
 
 - [ ] Exercise month-end clamping, imported history and the open lower boundary in Los Angeles time.
 - [ ] With two confirmed and five queued, one confirmation stops the other four before eligibility calls or tickets.
-- [ ] A cap change before submit prevents the click. An interrupted submitting state holds the employer until reconciliation.
+- [ ] Verified in 007: a cap change before submit prevents the click, and an interrupted submitting state holds the employer until reconciliation.
 
 ## Blocked by
 
-- [003-import-history.md](003-import-history.md)
+- [002-employer-identity.md](002-employer-identity.md)
+- Soft: [003-import-history.md](003-import-history.md) supplies imported rows for the cap test fixture only.
 
 ## User stories addressed
 
