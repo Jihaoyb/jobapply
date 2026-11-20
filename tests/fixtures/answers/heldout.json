@@ -1,0 +1,191 @@
+[
+  {
+    "id": "h01",
+    "category": "authorization",
+    "stored": "Are you authorized to work lawfully in the United States?",
+    "asked": "Do you have legal authorization to work in the United States?",
+    "label": "equivalent",
+    "note": "paraphrase",
+    "needsHumanReview": true
+  },
+  {
+    "id": "h02",
+    "category": "sponsorship",
+    "stored": "Will you, now or in the future, require sponsorship to obtain or maintain work authorization?",
+    "asked": "Will you now or in the future need employer sponsorship for a work visa?",
+    "label": "equivalent",
+    "note": "semantically equal; 'obtain'/'authorization' qualifiers trip the guard (expected miss)",
+    "needsHumanReview": true
+  },
+  {
+    "id": "h03",
+    "category": "sponsorship",
+    "stored": "Will you require visa sponsorship at any point in the future?",
+    "asked": "Will you need sponsorship for a visa in the future?",
+    "label": "equivalent",
+    "note": "future both",
+    "needsHumanReview": true
+  },
+  {
+    "id": "h04",
+    "category": "salary",
+    "stored": "Desired salary",
+    "asked": "What salary are you targeting?",
+    "label": "equivalent",
+    "note": "paraphrase",
+    "needsHumanReview": true
+  },
+  {
+    "id": "h05",
+    "category": "start_date",
+    "stored": "What is your earliest start date?",
+    "asked": "When would you be available to start?",
+    "label": "equivalent",
+    "note": "paraphrase",
+    "needsHumanReview": true
+  },
+  {
+    "id": "h06",
+    "category": "relocation",
+    "stored": "Are you willing to relocate to Austin, Texas?",
+    "asked": "Would you relocate to Austin, Texas for this role?",
+    "label": "equivalent",
+    "note": "same city",
+    "needsHumanReview": true
+  },
+  {
+    "id": "h07",
+    "category": "links",
+    "stored": "Website",
+    "asked": "Personal website URL",
+    "label": "equivalent",
+    "note": "link field",
+    "needsHumanReview": true
+  },
+  {
+    "id": "h08",
+    "category": "clearance",
+    "stored": "Do you hold an active TS/SCI clearance?",
+    "asked": "Do you currently have an active TS/SCI clearance?",
+    "label": "equivalent",
+    "note": "'currently' added; horizon guard pauses (expected miss)",
+    "needsHumanReview": true
+  },
+  {
+    "id": "h09",
+    "category": "age",
+    "stored": "Are you 18 or older?",
+    "asked": "Are you at least 18 years old?",
+    "label": "equivalent",
+    "note": "same number",
+    "needsHumanReview": true
+  },
+  {
+    "id": "h10",
+    "category": "hybrid",
+    "stored": "Are you open to working in a hybrid arrangement?",
+    "asked": "Are you comfortable with a hybrid work schedule?",
+    "label": "equivalent",
+    "note": "hybrid both",
+    "needsHumanReview": true
+  },
+  {
+    "id": "h11",
+    "category": "sponsorship",
+    "stored": "Do you require sponsorship now?",
+    "asked": "Will you require sponsorship in the future?",
+    "label": "not_equivalent",
+    "note": "time horizon",
+    "needsHumanReview": true
+  },
+  {
+    "id": "h12",
+    "category": "authorization",
+    "stored": "Are you authorized to work in the United Kingdom?",
+    "asked": "Are you authorized to work in the United States?",
+    "label": "not_equivalent",
+    "note": "location",
+    "needsHumanReview": true
+  },
+  {
+    "id": "h13",
+    "category": "sponsorship",
+    "stored": "Are you able to work without sponsorship?",
+    "asked": "Do you need sponsorship?",
+    "label": "not_equivalent",
+    "note": "polarity flip",
+    "needsHumanReview": true
+  },
+  {
+    "id": "h14",
+    "category": "salary",
+    "stored": "What is your expected annual salary in USD?",
+    "asked": "What is your expected monthly salary in USD?",
+    "label": "not_equivalent",
+    "note": "annual vs monthly",
+    "needsHumanReview": true
+  },
+  {
+    "id": "h15",
+    "category": "onsite",
+    "stored": "Are you willing to work onsite 4 days per week?",
+    "asked": "Are you willing to work onsite 2 days per week?",
+    "label": "not_equivalent",
+    "note": "numbers",
+    "needsHumanReview": true
+  },
+  {
+    "id": "h16",
+    "category": "clearance",
+    "stored": "Do you have an active Secret clearance?",
+    "asked": "Are you willing to obtain a Secret clearance?",
+    "label": "not_equivalent",
+    "note": "active vs obtainable",
+    "needsHumanReview": true
+  },
+  {
+    "id": "h17",
+    "category": "citizenship",
+    "stored": "Are you currently a permanent resident?",
+    "asked": "Will you become a permanent resident?",
+    "label": "not_equivalent",
+    "note": "current status vs future",
+    "needsHumanReview": true
+  },
+  {
+    "id": "h18",
+    "category": "history",
+    "stored": "Have you ever been terminated from a job?",
+    "asked": "Have you ever resigned from a job?",
+    "label": "not_equivalent",
+    "note": "guards pass; only the score separates",
+    "needsHumanReview": true
+  },
+  {
+    "id": "h19",
+    "category": "relocation",
+    "stored": "Are you willing to relocate to Toronto?",
+    "asked": "Are you willing to relocate within Canada?",
+    "label": "not_equivalent",
+    "note": "location",
+    "needsHumanReview": true
+  },
+  {
+    "id": "h20",
+    "category": "sponsorship",
+    "stored": "Do you need sponsorship to work in the US?",
+    "asked": "Do you need sponsorship to work in Canada?",
+    "label": "not_equivalent",
+    "note": "location",
+    "needsHumanReview": true
+  },
+  {
+    "id": "h21",
+    "category": "history",
+    "stored": "Have you ever worked for a government agency?",
+    "asked": "Have you ever worked for a government contractor?",
+    "label": "not_equivalent",
+    "note": "guards pass; only the score separates",
+    "needsHumanReview": true
+  }
+]

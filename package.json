@@ -16,6 +16,7 @@
     "password:hash": "node --import tsx scripts/hash-password.ts",
     "smoke": "node --env-file-if-exists=.env --import tsx scripts/smoke.ts",
     "dev:local": "node --env-file-if-exists=.env --import tsx scripts/local.ts",
+    "answers:calibrate": "node --env-file-if-exists=.env --import tsx scripts/answers-calibrate.ts",
     "format": "prettier --write src scripts tests extension *.json *.ts index.html"
   },
   "dependencies": {
