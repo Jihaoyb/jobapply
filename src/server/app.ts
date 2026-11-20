@@ -21,6 +21,7 @@ import {
   resolutionInput,
 } from './ledger.js';
 import { registerAnswerRoutes } from './answers/routes.js';
+import { registerReportRoutes } from './report/routes.js';
 
 export interface AppConfig {
   origin: string;
@@ -265,6 +266,7 @@ export async function createApp(db: Database, config: AppConfig) {
     return captureJob(db, owner, captureInput.parse(req.body), 'extension');
   });
   await registerAnswerRoutes(app, db, { dashboardOwner });
+  await registerReportRoutes(app, db, dashboardOwner);
   // The extension credential intentionally has no access to ledger read/admin APIs.
   if (config.staticRoot) {
     await app.register(staticFiles, { root: config.staticRoot });

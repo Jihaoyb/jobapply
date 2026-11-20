@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import type { Job, Ticket } from '../shared/contracts.js';
 import { api } from './api.js';
 import { AnswersPanel } from './answers/AnswersPanel.js';
+import { ReportPanel } from './report/ReportPanel.js';
 import './style.css';
 
 function Login({ onLogin }: { onLogin: () => void }) {
@@ -365,6 +366,7 @@ function Dashboard() {
       </div>
       <PostingForm onSaved={refresh} />
       <AnswersPanel />
+      <ReportPanel />
       <button
         className="text-button refresh"
         onClick={() => void refresh().catch((error) => setError(error.message))}
