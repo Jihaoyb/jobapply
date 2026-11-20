@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import type { Job, Ticket } from '../shared/contracts.js';
 import { api } from './api.js';
 import './style.css';
+import { OutreachPanel } from './outreach/OutreachPanel.js';
 
 function Login({ onLogin }: { onLogin: () => void }) {
   const [error, setError] = useState(''),
@@ -358,6 +359,7 @@ function Dashboard() {
       <p className="intro">Capture a posting. Keep both routes to the role.</p>
       {error && <p role="alert">{error}</p>}
       <Tickets tickets={tickets} onChanged={refresh} />
+      <OutreachPanel />
       <div className="overview">
         <SavedJobs jobs={jobs} />
         <Pairings />

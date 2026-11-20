@@ -20,6 +20,7 @@ import {
   resolveTicket,
   resolutionInput,
 } from './ledger.js';
+import { registerOutreachRoutes } from './outreach/routes.js';
 
 export interface AppConfig {
   origin: string;
@@ -263,6 +264,7 @@ export async function createApp(db: Database, config: AppConfig) {
     await extensionOwner(req, owner);
     return captureJob(db, owner, captureInput.parse(req.body), 'extension');
   });
+  await registerOutreachRoutes(app, db, dashboardOwner, config);
   // The extension credential intentionally has no access to ledger read/admin APIs.
   if (config.staticRoot) {
     await app.register(staticFiles, { root: config.staticRoot });

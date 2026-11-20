@@ -1,0 +1,100 @@
+[
+  {
+    "id": "syn-p01",
+    "name": "Avery Quill",
+    "title": "Engineering Manager, Platform",
+    "headline": "Manages the platform team hiring for software engineers",
+    "departments": ["engineering"]
+  },
+  {
+    "id": "syn-p02",
+    "name": "Bram Okonkwo-Test",
+    "title": "Technical Recruiter",
+    "headline": "Recruiting engineers for platform and infra",
+    "departments": ["human_resources"]
+  },
+  {
+    "id": "syn-p03",
+    "name": "Cleo Marchetti-Sample",
+    "title": "Director of Engineering",
+    "headline": "Engineering leadership",
+    "departments": ["engineering"]
+  },
+  {
+    "id": "syn-p04",
+    "name": "Dev Fakename",
+    "title": "Talent Acquisition Partner",
+    "headline": "Go-to-market hiring",
+    "departments": ["human_resources"]
+  },
+  {
+    "id": "syn-p05",
+    "name": "Eun Placeholder",
+    "title": "Recruiter",
+    "headline": "Sales recruiting",
+    "departments": ["human_resources"]
+  },
+  {
+    "id": "syn-p06",
+    "name": "Faro Synth",
+    "title": "Head of Engineering",
+    "headline": "Leads all engineering",
+    "departments": ["engineering"]
+  },
+  {
+    "id": "syn-p07",
+    "name": "Gale Mockley",
+    "title": "Engineering Manager, Mobile",
+    "headline": "Mobile apps",
+    "departments": ["engineering"]
+  },
+  {
+    "id": "syn-p08",
+    "name": "Hana Testwood",
+    "title": "Recruiting Coordinator",
+    "headline": "Interview scheduling",
+    "departments": ["human_resources"]
+  },
+  {
+    "id": "syn-p09",
+    "name": "Ivo Dummett",
+    "title": "Hiring Manager",
+    "headline": "Data team",
+    "departments": ["engineering"]
+  },
+  {
+    "id": "syn-p10",
+    "name": "Jun Exemplar",
+    "title": "Technical Recruiter",
+    "headline": "University hiring",
+    "departments": ["human_resources"]
+  },
+  {
+    "id": "syn-p11",
+    "name": "Kit Fictive",
+    "title": "Talent Acquisition Lead",
+    "headline": "Leads TA",
+    "departments": ["human_resources"]
+  },
+  {
+    "id": "syn-p12",
+    "name": "Lior Notreal",
+    "title": "Engineering Manager, Billing",
+    "headline": "Billing team",
+    "departments": ["engineering"]
+  },
+  {
+    "id": "syn-p13",
+    "name": "Mae Imaginary",
+    "title": "Software Engineering Manager",
+    "headline": "Search team",
+    "departments": ["engineering"]
+  },
+  {
+    "id": "syn-p14",
+    "name": "Nico Madeup",
+    "title": "Recruiter",
+    "headline": "Contract recruiter",
+    "departments": ["human_resources"]
+  }
+]
