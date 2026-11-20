@@ -12,6 +12,7 @@ Resolve company domains and ATS slugs during capture. Expose alias evidence and 
 
 - [ ] A careers redirect or iframe links the observed employer and board automatically. Conflicts pause for review.
 - [ ] Cross-board aliases combine history. Matching fallback titles and locations link sightings while distinct known requisitions survive.
+- [ ] Expose a `domain` field on the canonical employer. Shared-ATS keys may leave it empty for 010 to fill.
 
 ## Blocked by
 

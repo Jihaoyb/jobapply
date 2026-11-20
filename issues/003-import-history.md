@@ -12,6 +12,7 @@ Upload the four-column CSV and resolve unmatched employers from import tickets.
 
 - [ ] A resolved row counts on its original local date.
 - [ ] Invalid rows show actionable errors. Repeating an import or matching an existing confirmed job preserves a single submission.
+- [ ] Verified in 007: import two historical rows through the CSV flow, confirm one new job, and verify the next queued job for that employer stops before Sol.
 
 ## Blocked by
 

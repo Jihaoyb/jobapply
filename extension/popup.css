@@ -1,0 +1,91 @@
+:root {
+  font:
+    14px/1.5 -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  color: #101412;
+  background: white;
+}
+body {
+  width: 390px;
+  margin: 0;
+  padding: 20px;
+}
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #c9cccd;
+  padding-bottom: 12px;
+}
+strong {
+  font-size: 22px;
+}
+h1 {
+  font-size: 22px;
+  margin: 12px 0;
+}
+p {
+  color: #555b60;
+}
+label {
+  display: block;
+  font-weight: 600;
+  margin: 12px 0;
+}
+input,
+textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px;
+  border: 1px solid #a7acad;
+  border-radius: 5px;
+  font: inherit;
+}
+textarea {
+  resize: vertical;
+}
+button {
+  font: inherit;
+  cursor: pointer;
+  background: #14552f;
+  border: 1px solid #14552f;
+  border-radius: 5px;
+  color: white;
+  padding: 8px 12px;
+  font-weight: 600;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+#settings,
+#forget,
+#no,
+#again {
+  background: white;
+  color: #14552f;
+}
+#settings {
+  border: 0;
+  padding: 0;
+}
+.actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 20px 0 4px;
+}
+[hidden] {
+  display: none !important;
+}
+:focus-visible {
+  outline: 2px solid #14552f;
+  outline-offset: 3px;
+}
+#status {
+  overflow-wrap: anywhere;
+}

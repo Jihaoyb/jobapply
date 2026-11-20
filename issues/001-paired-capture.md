@@ -10,9 +10,14 @@ Select Yes or No on a discovery page and view saved jobs in the private hosted d
 
 ## Acceptance criteria
 
-- [ ] Yes persists both URLs and posting text. No dismisses.
-- [ ] Pair from the authenticated dashboard. Missing, revoked and wrong-owner tokens cannot access the ledger.
+- [x] Yes persists both URLs and posting text. No dismisses.
+- [x] Pair from the authenticated dashboard. Missing, revoked and wrong-owner tokens cannot access the ledger.
 - [ ] Deploy a pilot smoke test on Railway and verify provider credentials stay server-side.
+- [x] Freeze the shared contracts other lanes build on: ledger event names carrying job ID and timestamp, pause open/close pairs, review outcome enum, ticket primitive (question, choices, employer, role, resolve action), canonical employer ID shape, and one model-call wrapper that records provider, model, prompt version and token usage.
+
+## Implementation status
+
+P1 code and synthetic integration checks are implemented. See [contracts v1](../docs/contracts.md), [setup](../README.md), and [verification / remaining acceptance work](../docs/p1-status.md). The full unpacked Chrome flow and Railway hosted smoke remain unverified; the deployment criterion stays open.
 
 ## Blocked by
 

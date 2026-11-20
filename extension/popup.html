@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Jobapply Capture</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <strong>Jobapply</strong
+      ><button id="settings" type="button">Pairing</button>
+    </header>
+    <p id="status" role="status">Reading this posting…</p>
+    <section id="pairing-panel" hidden>
+      <h1>Pair your extension</h1>
+      <p>
+        Create a token in your signed-in dashboard, then paste its pairing
+        details here.
+      </p>
+      <form id="pair-form">
+        <label
+          >Pairing details<textarea
+            id="bundle"
+            rows="4"
+            required
+          ></textarea></label
+        ><button>Save pairing</button>
+      </form>
+      <button id="forget" type="button">Forget this device</button>
+    </section>
+    <form id="capture-form">
+      <h1>Keep this posting?</h1>
+      <p>Review the text and employer link before saving.</p>
+      <label>Role<input name="title" required maxlength="300" /></label
+      ><label>Employer<input name="employer" required maxlength="300" /></label
+      ><label
+        >Discovery URL<input
+          name="discoveryUrl"
+          type="url"
+          required
+          maxlength="4000" /></label
+      ><label
+        >Application URL<input
+          name="applicationUrl"
+          type="url"
+          required
+          maxlength="4000" /></label
+      ><label
+        >Posting text<textarea
+          name="postingText"
+          rows="7"
+          required
+          maxlength="150000"
+        ></textarea>
+      </label>
+      <div class="actions">
+        <button type="button" id="no">No, dismiss</button
+        ><button id="yes" type="submit">Yes, save posting</button>
+      </div>
+    </form>
+    <button id="again" type="button" hidden>Review this posting again</button>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

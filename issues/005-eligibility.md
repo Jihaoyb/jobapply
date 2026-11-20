@@ -13,10 +13,11 @@ Route posting and form text through the two eligibility lists and expose exclusi
 - [ ] Replay all three routes, including negation and preference. Verify exact source spans or open a ticket.
 - [ ] Persist provenance, model ID, prompt version and token usage. Exercise Responses API low reasoning.
 - [ ] Measure false inclusions and exclusions separately and budget for all-Sol traffic. Gate prompt and model changes on replay.
+- [ ] Verified in 007: a restriction revealed on the form reroutes through the same three routes before submit.
 
 ## Blocked by
 
-- [004-queue-cap.md](004-queue-cap.md)
+- [001-paired-capture.md](001-paired-capture.md)
 
 ## User stories addressed
 
