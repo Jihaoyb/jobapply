@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Jobapply Capture",
+  "version": "0.1.0",
+  "description": "Choose Yes or No on a posting and save it to your private job ledger.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Capture this posting"
+  }
+}
