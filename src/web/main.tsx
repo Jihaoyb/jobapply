@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import type { Job, Ticket } from '../shared/contracts.js';
 import { api } from './api.js';
 import './style.css';
+import { IdentityPanel } from './identity/IdentityPanel.js';
 
 function Login({ onLogin }: { onLogin: () => void }) {
   const [error, setError] = useState(''),
@@ -363,6 +364,7 @@ function Dashboard() {
         <Pairings />
       </div>
       <PostingForm onSaved={refresh} />
+      <IdentityPanel />
       <button
         className="text-button refresh"
         onClick={() => void refresh().catch((error) => setError(error.message))}

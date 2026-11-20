@@ -20,6 +20,7 @@ import {
   resolveTicket,
   resolutionInput,
 } from './ledger.js';
+import { registerIdentityRoutes } from './identity/routes.js';
 
 export interface AppConfig {
   origin: string;
@@ -264,6 +265,7 @@ export async function createApp(db: Database, config: AppConfig) {
     return captureJob(db, owner, captureInput.parse(req.body), 'extension');
   });
   // The extension credential intentionally has no access to ledger read/admin APIs.
+  await registerIdentityRoutes(app, db, { dashboardOwner });
   if (config.staticRoot) {
     await app.register(staticFiles, { root: config.staticRoot });
     app.get('/', (_req, reply) => reply.sendFile('index.html'));
