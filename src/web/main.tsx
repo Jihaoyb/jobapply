@@ -7,6 +7,7 @@ import { ReportPanel } from './report/ReportPanel.js';
 import { EligibilityPanel } from './eligibility/EligibilityPanel.js';
 import './style.css';
 import { OutreachPanel } from './outreach/OutreachPanel.js';
+import { IdentityPanel } from './identity/IdentityPanel.js';
 
 function Login({ onLogin }: { onLogin: () => void }) {
   const [error, setError] = useState(''),
@@ -371,6 +372,7 @@ function Dashboard() {
       <PostingForm onSaved={refresh} />
       <AnswersPanel />
       <ReportPanel />
+      <IdentityPanel />
       <button
         className="text-button refresh"
         onClick={() => void refresh().catch((error) => setError(error.message))}

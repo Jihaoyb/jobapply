@@ -14,6 +14,7 @@ import {
   reviewOutcomes,
 } from '../shared/contracts.js';
 import type { Database, Sql } from './db.js';
+import { onCapture } from './identity/capture.js';
 import { z } from 'zod';
 
 export class HttpError extends Error {
@@ -135,7 +136,7 @@ export async function captureJob(
       source,
       ...host,
     });
-    return job;
+    return onCapture(sql, applicantId, job);
   });
 }
 export async function openTicket(

@@ -24,6 +24,7 @@ import { registerAnswerRoutes } from './answers/routes.js';
 import { registerReportRoutes } from './report/routes.js';
 import { registerOutreachRoutes } from './outreach/routes.js';
 import { registerEligibilityRoutes } from './eligibility/routes.js';
+import { registerIdentityRoutes } from './identity/routes.js';
 
 export interface AppConfig {
   origin: string;
@@ -272,6 +273,7 @@ export async function createApp(db: Database, config: AppConfig) {
   await registerReportRoutes(app, db, dashboardOwner);
   await registerOutreachRoutes(app, db, dashboardOwner, config);
   // The extension credential intentionally has no access to ledger read/admin APIs.
+  await registerIdentityRoutes(app, db, { dashboardOwner });
   if (config.staticRoot) {
     await app.register(staticFiles, { root: config.staticRoot });
     app.get('/', (_req, reply) => reply.sendFile('index.html'));
