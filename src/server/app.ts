@@ -22,6 +22,7 @@ import {
 } from './ledger.js';
 import { registerAnswerRoutes } from './answers/routes.js';
 import { registerReportRoutes } from './report/routes.js';
+import { registerOutreachRoutes } from './outreach/routes.js';
 
 export interface AppConfig {
   origin: string;
@@ -267,6 +268,7 @@ export async function createApp(db: Database, config: AppConfig) {
   });
   await registerAnswerRoutes(app, db, { dashboardOwner });
   await registerReportRoutes(app, db, dashboardOwner);
+  await registerOutreachRoutes(app, db, dashboardOwner, config);
   // The extension credential intentionally has no access to ledger read/admin APIs.
   if (config.staticRoot) {
     await app.register(staticFiles, { root: config.staticRoot });
