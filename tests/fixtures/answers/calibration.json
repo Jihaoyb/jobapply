@@ -1,0 +1,380 @@
+[
+  {
+    "id": "c01",
+    "category": "authorization",
+    "stored": "Are you legally authorized to work in the United States?",
+    "asked": "Are you legally eligible to work in the U.S.?",
+    "label": "equivalent",
+    "note": "paraphrase",
+    "needsHumanReview": true
+  },
+  {
+    "id": "c02",
+    "category": "authorization",
+    "stored": "Are you currently authorized to work in the United States?",
+    "asked": "Are you presently authorized to work in the USA?",
+    "label": "equivalent",
+    "note": "same horizon (now)",
+    "needsHumanReview": true
+  },
+  {
+    "id": "c03",
+    "category": "sponsorship",
+    "stored": "Will you now or in the future require sponsorship for employment visa status (e.g., H-1B visa status)?",
+    "asked": "Will you now, or at any point in the future, require visa sponsorship (e.g., H-1B)?",
+    "label": "equivalent",
+    "note": "now-or-future both",
+    "needsHumanReview": true
+  },
+  {
+    "id": "c04",
+    "category": "sponsorship",
+    "stored": "Will you in the future require sponsorship for employment visa status?",
+    "asked": "Will you require visa sponsorship in the future to continue working?",
+    "label": "equivalent",
+    "note": "future both",
+    "needsHumanReview": true
+  },
+  {
+    "id": "c05",
+    "category": "sponsorship",
+    "stored": "Do you currently require visa sponsorship to work in the United States?",
+    "asked": "Do you require sponsorship at this time to work in the US?",
+    "label": "equivalent",
+    "note": "current sponsorship",
+    "needsHumanReview": true
+  },
+  {
+    "id": "c06",
+    "category": "citizenship",
+    "stored": "Are you a U.S. citizen or lawful permanent resident?",
+    "asked": "Are you a citizen or green card holder of the United States?",
+    "label": "equivalent",
+    "note": "paraphrase",
+    "needsHumanReview": true
+  },
+  {
+    "id": "c07",
+    "category": "relocation",
+    "stored": "Are you willing to relocate to Seattle?",
+    "asked": "Would you be open to relocating to Seattle, WA?",
+    "label": "equivalent",
+    "note": "same city",
+    "needsHumanReview": true
+  },
+  {
+    "id": "c08",
+    "category": "relocation",
+    "stored": "Are you willing to relocate?",
+    "asked": "Are you open to relocation for this role?",
+    "label": "equivalent",
+    "note": "generic relocation",
+    "needsHumanReview": true
+  },
+  {
+    "id": "c09",
+    "category": "salary",
+    "stored": "What are your salary expectations?",
+    "asked": "What is your expected salary?",
+    "label": "equivalent",
+    "note": "paraphrase",
+    "needsHumanReview": true
+  },
+  {
+    "id": "c10",
+    "category": "salary",
+    "stored": "What is your desired annual base salary?",
+    "asked": "What are your annual base salary expectations?",
+    "label": "equivalent",
+    "note": "same qualifiers",
+    "needsHumanReview": true
+  },
+  {
+    "id": "c11",
+    "category": "start_date",
+    "stored": "When can you start?",
+    "asked": "What is your earliest available start date?",
+    "label": "equivalent",
+    "note": "paraphrase",
+    "needsHumanReview": true
+  },
+  {
+    "id": "c12",
+    "category": "start_date",
+    "stored": "How much notice do you need to give your current employer?",
+    "asked": "What is your notice period?",
+    "label": "equivalent",
+    "note": "semantically equal; 'current' trips the horizon guard (expected miss)",
+    "needsHumanReview": true
+  },
+  {
+    "id": "c13",
+    "category": "clearance",
+    "stored": "Do you currently hold an active security clearance?",
+    "asked": "Do you have an active security clearance at this time?",
+    "label": "equivalent",
+    "note": "now both",
+    "needsHumanReview": true
+  },
+  {
+    "id": "c14",
+    "category": "links",
+    "stored": "Portfolio URL",
+    "asked": "Link to your portfolio or personal website",
+    "label": "equivalent",
+    "note": "link field",
+    "needsHumanReview": true
+  },
+  {
+    "id": "c15",
+    "category": "links",
+    "stored": "LinkedIn Profile",
+    "asked": "LinkedIn URL",
+    "label": "equivalent",
+    "note": "link field",
+    "needsHumanReview": true
+  },
+  {
+    "id": "c16",
+    "category": "other",
+    "stored": "How did you hear about this position?",
+    "asked": "How did you hear about us?",
+    "label": "equivalent",
+    "note": "'about us' is not a location",
+    "needsHumanReview": true
+  },
+  {
+    "id": "c17",
+    "category": "onsite",
+    "stored": "Are you able to work onsite 3 days a week in San Francisco?",
+    "asked": "Can you work onsite in San Francisco three days per week?",
+    "label": "equivalent",
+    "note": "number words normalized",
+    "needsHumanReview": true
+  },
+  {
+    "id": "c18",
+    "category": "age",
+    "stored": "Are you at least 18 years of age?",
+    "asked": "Are you 18 years or older?",
+    "label": "equivalent",
+    "note": "same number",
+    "needsHumanReview": true
+  },
+  {
+    "id": "c19",
+    "category": "remote",
+    "stored": "Are you comfortable working remotely?",
+    "asked": "Are you open to a fully remote role?",
+    "label": "equivalent",
+    "note": "remote both",
+    "needsHumanReview": true
+  },
+  {
+    "id": "c20",
+    "category": "authorization",
+    "stored": "Are you eligible to work in Canada?",
+    "asked": "Are you legally authorized to work in Canada?",
+    "label": "equivalent",
+    "note": "same country",
+    "needsHumanReview": true
+  },
+  {
+    "id": "n01",
+    "category": "sponsorship",
+    "stored": "Will you now or in the future require sponsorship for employment visa status?",
+    "asked": "Are you able to work in the United States now and in the future without sponsorship?",
+    "label": "not_equivalent",
+    "note": "polarity flip (require vs without)",
+    "needsHumanReview": true
+  },
+  {
+    "id": "n02",
+    "category": "sponsorship",
+    "stored": "Do you currently require visa sponsorship?",
+    "asked": "Will you require visa sponsorship in the future?",
+    "label": "not_equivalent",
+    "note": "time horizon now vs future",
+    "needsHumanReview": true
+  },
+  {
+    "id": "n03",
+    "category": "authorization",
+    "stored": "Are you currently authorized to work in the United States?",
+    "asked": "Will you require sponsorship now or in the future to work in the United States?",
+    "label": "not_equivalent",
+    "note": "current authorization does not answer future sponsorship",
+    "needsHumanReview": true
+  },
+  {
+    "id": "n04",
+    "category": "sponsorship",
+    "stored": "Will you in the future require sponsorship for employment visa status?",
+    "asked": "Will you now or in the future require sponsorship for employment visa status?",
+    "label": "not_equivalent",
+    "note": "horizon future vs now-or-future",
+    "needsHumanReview": true
+  },
+  {
+    "id": "n05",
+    "category": "authorization",
+    "stored": "Are you legally authorized to work in the United States?",
+    "asked": "Are you legally authorized to work in Canada?",
+    "label": "not_equivalent",
+    "note": "location",
+    "needsHumanReview": true
+  },
+  {
+    "id": "n06",
+    "category": "relocation",
+    "stored": "Are you willing to relocate to Seattle?",
+    "asked": "Are you willing to relocate to Austin?",
+    "label": "not_equivalent",
+    "note": "location",
+    "needsHumanReview": true
+  },
+  {
+    "id": "n07",
+    "category": "onsite",
+    "stored": "Are you able to work onsite in New York?",
+    "asked": "Are you able to work onsite in London?",
+    "label": "not_equivalent",
+    "note": "location",
+    "needsHumanReview": true
+  },
+  {
+    "id": "n08",
+    "category": "sponsorship",
+    "stored": "Do you require sponsorship to work in the US?",
+    "asked": "Can you work in the US without requiring sponsorship?",
+    "label": "not_equivalent",
+    "note": "polarity flip",
+    "needsHumanReview": true
+  },
+  {
+    "id": "n09",
+    "category": "clearance",
+    "stored": "Do you have an active security clearance?",
+    "asked": "Are you able to obtain a security clearance?",
+    "label": "not_equivalent",
+    "note": "active vs obtainable",
+    "needsHumanReview": true
+  },
+  {
+    "id": "n10",
+    "category": "citizenship",
+    "stored": "Are you a U.S. citizen?",
+    "asked": "Are you authorized to work in the U.S.?",
+    "label": "not_equivalent",
+    "note": "citizenship vs authorization",
+    "needsHumanReview": true
+  },
+  {
+    "id": "n11",
+    "category": "salary",
+    "stored": "What is your expected hourly rate?",
+    "asked": "What is your expected annual salary?",
+    "label": "not_equivalent",
+    "note": "hourly vs annual",
+    "needsHumanReview": true
+  },
+  {
+    "id": "n12",
+    "category": "salary",
+    "stored": "What is your desired base salary?",
+    "asked": "What is your desired total compensation?",
+    "label": "not_equivalent",
+    "note": "base vs total",
+    "needsHumanReview": true
+  },
+  {
+    "id": "n13",
+    "category": "onsite",
+    "stored": "Can you work onsite 3 days a week?",
+    "asked": "Can you work onsite 5 days a week?",
+    "label": "not_equivalent",
+    "note": "numbers",
+    "needsHumanReview": true
+  },
+  {
+    "id": "n14",
+    "category": "experience",
+    "stored": "Do you have at least 5 years of Python experience?",
+    "asked": "Do you have at least 3 years of Python experience?",
+    "label": "not_equivalent",
+    "note": "numbers",
+    "needsHumanReview": true
+  },
+  {
+    "id": "n15",
+    "category": "start_date",
+    "stored": "When can you start?",
+    "asked": "Are you able to start within two weeks?",
+    "label": "not_equivalent",
+    "note": "date vs yes/no with number",
+    "needsHumanReview": true
+  },
+  {
+    "id": "n16",
+    "category": "relocation",
+    "stored": "Are you willing to relocate?",
+    "asked": "Are you willing to travel up to 25% of the time?",
+    "label": "not_equivalent",
+    "note": "relocation vs travel",
+    "needsHumanReview": true
+  },
+  {
+    "id": "n17",
+    "category": "history",
+    "stored": "Have you previously worked for this company?",
+    "asked": "Do you currently work for this company?",
+    "label": "not_equivalent",
+    "note": "past vs current",
+    "needsHumanReview": true
+  },
+  {
+    "id": "n18",
+    "category": "age",
+    "stored": "Are you at least 18 years old?",
+    "asked": "Are you at least 21 years old?",
+    "label": "not_equivalent",
+    "note": "numbers",
+    "needsHumanReview": true
+  },
+  {
+    "id": "n19",
+    "category": "sponsorship",
+    "stored": "Do you currently hold an H-1B visa?",
+    "asked": "Will you require H-1B sponsorship in the future?",
+    "label": "not_equivalent",
+    "note": "status vs future sponsorship",
+    "needsHumanReview": true
+  },
+  {
+    "id": "n20",
+    "category": "relocation",
+    "stored": "Are you willing to relocate?",
+    "asked": "Are you willing to relocate to London?",
+    "label": "not_equivalent",
+    "note": "location added",
+    "needsHumanReview": true
+  },
+  {
+    "id": "n21",
+    "category": "remote",
+    "stored": "Are you comfortable working remotely?",
+    "asked": "Are you comfortable working onsite?",
+    "label": "not_equivalent",
+    "note": "remote vs onsite",
+    "needsHumanReview": true
+  },
+  {
+    "id": "n22",
+    "category": "background",
+    "stored": "Have you ever been convicted of a felony?",
+    "asked": "Have you ever been convicted of a misdemeanor?",
+    "label": "not_equivalent",
+    "note": "guards pass; only the score separates",
+    "needsHumanReview": true
+  }
+]
