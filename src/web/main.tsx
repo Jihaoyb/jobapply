@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Job, Ticket } from '../shared/contracts.js';
 import { api } from './api.js';
+import { ReportPanel } from './report/ReportPanel.js';
 import './style.css';
 
 function Login({ onLogin }: { onLogin: () => void }) {
@@ -363,6 +364,7 @@ function Dashboard() {
         <Pairings />
       </div>
       <PostingForm onSaved={refresh} />
+      <ReportPanel />
       <button
         className="text-button refresh"
         onClick={() => void refresh().catch((error) => setError(error.message))}
