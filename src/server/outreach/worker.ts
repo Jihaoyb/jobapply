@@ -100,6 +100,24 @@ async function runLocked(
     );
     return 'skipped_not_confirmed';
   }
+  // Only a live submission confirmed by this app starts outreach. Imported history
+  // jobs are `confirmed` without an application.confirmed event and must not.
+  const confirmedEvent = (
+    await deps.db.query(
+      "SELECT 1 FROM ledger_events WHERE applicant_id=$1 AND job_id=$2 AND name='application.confirmed' LIMIT 1",
+      [applicantId, jobId],
+    )
+  ).rows[0];
+  if (!confirmedEvent) {
+    await logWorker(
+      deps,
+      applicantId,
+      jobId,
+      'skipped_not_confirmed',
+      'no application.confirmed event (imported or historical application)',
+    );
+    return 'skipped_not_confirmed';
+  }
   // One open ticket per job: another lane's pause wins; outreach waits and a later wake
   // (sweep, event, retry) runs once it has closed. No Apollo or model call meanwhile.
   const blocking = await foreignOpenTicket(deps.db, applicantId, jobId);

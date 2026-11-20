@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { createApp } from './app.js';
 import { postgres, migrate } from './db.js';
 import { validPasswordHash } from './auth.js';
+import { renormalizeAnswerKeys } from './answers/bank.js';
 
 const production = process.env.NODE_ENV === 'production';
 const origin = process.env.APP_ORIGIN ?? 'http://localhost:3000';
@@ -15,6 +16,8 @@ if (new URL(origin).origin !== origin)
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required');
 const db = postgres(process.env.DATABASE_URL);
 await migrate(db);
+// Idempotent data step: answer keys follow the current normalizeQuestion (no-op once applied).
+await renormalizeAnswerKeys(db);
 const email = process.env.PILOT_EMAIL?.toLowerCase(),
   passwordHash = process.env.PILOT_PASSWORD_HASH;
 if (email && passwordHash) {

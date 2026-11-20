@@ -6,7 +6,7 @@ import type {
   AnswerScope,
   SavedAnswer,
 } from '../../shared/answers.js';
-import { normalizeQuestion } from './normalize.js';
+import { normalizeQuestion, questionKey } from './normalize.js';
 import { profileSeedAnswers } from './seed.js';
 
 export function answerFromRow(row: any): SavedAnswer {
@@ -62,7 +62,7 @@ export async function upsertAnswer(
       input.scope === 'job' ? input.jobId : null,
       input.scope === 'employer' ? input.canonicalEmployerId : null,
       input.question,
-      normalizeQuestion(input.question),
+      questionKey(input.question),
       JSON.stringify(input.choices),
       input.answer,
       input.source,
@@ -182,6 +182,8 @@ export async function proposeAlias(
     score: number;
   },
 ) {
+  const key = normalizeQuestion(input.question);
+  if (!key) return; // never match on an empty key
   await sql.query(
     `INSERT INTO answer_aliases (id,applicant_id,answer_id,canonical_employer_id,question,normalized_question,status,score)
      VALUES ($1,$2,$3,$4,$5,$6,'proposed',$7) ON CONFLICT DO NOTHING`,
@@ -191,7 +193,7 @@ export async function proposeAlias(
       input.answerId,
       input.canonicalEmployerId,
       input.question,
-      normalizeQuestion(input.question),
+      key,
       input.score,
     ],
   );
@@ -211,9 +213,108 @@ export async function decideAlias(
   return { status };
 }
 
-/** Seeds the work-authorization profile answers once; every seed needs human review. */
+/**
+ * Re-keys stored answers and aliases whose `normalized_question` no longer matches the current
+ * `normalizeQuestion` (the key became lossless in the P2 review fixes). Idempotent: rows already
+ * on the current key are untouched. The new key is strictly finer than the old one, so two
+ * stored rows never collide with each other; a row whose new key is already taken by a newer
+ * row (or would be empty) keeps its old key, which no longer matches any form question, and an
+ * answer is flagged `needs_review` so the dashboard shows it. Runs at boot and before seeding.
+ */
+export async function renormalizeAnswerKeysTx(sql: Sql, applicantId?: string) {
+  const owner = applicantId ? 'AND applicant_id=$1' : '';
+  const params = applicantId ? [applicantId] : [];
+  let rekeyed = 0,
+    flagged = 0;
+  const answers = (
+    await sql.query(
+      `SELECT id,applicant_id,scope,job_id,canonical_employer_id,question,normalized_question FROM answers WHERE true ${owner} FOR UPDATE`,
+      params,
+    )
+  ).rows;
+  for (const row of answers) {
+    const key = normalizeQuestion(row.question);
+    if (key === row.normalized_question) continue;
+    const taken =
+      !key ||
+      (
+        await sql.query(
+          `SELECT 1 FROM answers WHERE applicant_id=$1 AND scope=$2 AND normalized_question=$3 AND id<>$4
+             AND job_id IS NOT DISTINCT FROM $5::uuid AND canonical_employer_id IS NOT DISTINCT FROM $6::uuid`,
+          [
+            row.applicant_id,
+            row.scope,
+            key,
+            row.id,
+            row.scope === 'job' ? row.job_id : null,
+            row.scope === 'employer' ? row.canonical_employer_id : null,
+          ],
+        )
+      ).rows.length > 0;
+    if (taken) {
+      await sql.query(
+        'UPDATE answers SET needs_review=true, updated_at=now() WHERE id=$1 AND applicant_id=$2',
+        [row.id, row.applicant_id],
+      );
+      flagged++;
+    } else {
+      await sql.query(
+        'UPDATE answers SET normalized_question=$3 WHERE id=$1 AND applicant_id=$2',
+        [row.id, row.applicant_id, key],
+      );
+      rekeyed++;
+    }
+  }
+  const aliases = (
+    await sql.query(
+      `SELECT id,applicant_id,answer_id,canonical_employer_id,question,normalized_question FROM answer_aliases WHERE true ${owner} FOR UPDATE`,
+      params,
+    )
+  ).rows;
+  for (const row of aliases) {
+    const key = normalizeQuestion(row.question);
+    if (key === row.normalized_question) continue;
+    const taken =
+      !key ||
+      (
+        await sql.query(
+          `SELECT 1 FROM answer_aliases WHERE applicant_id=$1 AND answer_id=$2 AND normalized_question=$3 AND id<>$4
+             AND canonical_employer_id IS NOT DISTINCT FROM $5::uuid`,
+          [
+            row.applicant_id,
+            row.answer_id,
+            key,
+            row.id,
+            row.canonical_employer_id,
+          ],
+        )
+      ).rows.length > 0;
+    // A twin alias already exists on the new key (or the key is empty): this one is redundant.
+    if (taken)
+      await sql.query(
+        'DELETE FROM answer_aliases WHERE id=$1 AND applicant_id=$2',
+        [row.id, row.applicant_id],
+      );
+    else
+      await sql.query(
+        'UPDATE answer_aliases SET normalized_question=$3 WHERE id=$1 AND applicant_id=$2',
+        [row.id, row.applicant_id, key],
+      );
+    rekeyed++;
+  }
+  return { rekeyed, flagged };
+}
+export async function renormalizeAnswerKeys(db: Database) {
+  return db.transaction((sql) => renormalizeAnswerKeysTx(sql));
+}
+
+/**
+ * Seeds the work-authorization profile answers once; every seed needs human review. Stored
+ * keys are brought to the current normalization first, so a re-run never duplicates a seed.
+ */
 export async function seedProfileAnswers(db: Database, applicantId: string) {
   return db.transaction(async (sql) => {
+    await renormalizeAnswerKeysTx(sql, applicantId);
     let inserted = 0;
     for (const seed of profileSeedAnswers)
       if (

@@ -76,7 +76,7 @@ const ctx = (f: F, jobId: string, employerId: string | null) => ({
 test('normalization and deterministic guards catch polarity, time horizon, location, numbers and choice mismatches', () => {
   assert.equal(
     normalizeQuestion('  Are you legally authorized to work in the U.S.? * '),
-    'are you legally authorized to work in the u s',
+    'are you legally authorized to work in the u.s',
   );
   assert.deepEqual(
     guardMismatches(

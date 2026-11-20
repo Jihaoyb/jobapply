@@ -5,7 +5,8 @@
  * never enters the pilot funnel) plus an `imported` submission dated on the row's original local
  * date. The job gives import tickets their required `job_id` and lets later live sightings of the
  * same posting dedupe against it. Re-imports are idempotent by row hash; a row matching an
- * existing confirmed submission is linked to it instead of counted again.
+ * existing confirmed or in-flight (submitting/uncertain) submission is linked to it instead of
+ * counted again.
  */
 import { randomUUID } from 'node:crypto';
 import { classifyHost } from '../../shared/contracts.js';
@@ -103,7 +104,10 @@ async function createImportJob(
 }
 
 /**
- * Counts one resolved row for `employerId`, or links it to a matching confirmed submission.
+ * Counts one resolved row for `employerId`, or links it to a matching submission that is
+ * confirmed or still in flight (`submitting`/`uncertain`): a live click that has not been
+ * reconciled yet is the same application, so the import links to it instead of counting a
+ * second one.
  * Matching: same posting URL, same requisition ID, or same normalized title within one day
  * (when no comparable requisition IDs disagree).
  */
@@ -126,7 +130,7 @@ export async function countImportRow(
     await sql.query(
       `SELECT s.id, s.job_id, to_char(s.local_date,'YYYY-MM-DD') AS d, i.requisition_id, i.url_key, i.title_key
        FROM submissions s JOIN job_identity i ON i.job_id=s.job_id
-       WHERE s.applicant_id=$1 AND s.canonical_employer_id=$2 AND s.state='confirmed'
+       WHERE s.applicant_id=$1 AND s.canonical_employer_id=$2 AND s.state IN ('confirmed','submitting','uncertain')
        ORDER BY s.local_date, s.created_at`,
       [applicantId, employerId],
     )

@@ -273,7 +273,15 @@ export function computeReport(
       [...jobsWith('application.uncertain')].filter((j) => !confirmed.has(j)),
     ),
     outreachShortlisted: jobsWith('outreach.shortlisted'),
-    outreachReviewed: jobsWith('outreach.reviewed'),
+    // Same rule as the outreach corrections denominator: a deferred review is not a review.
+    outreachReviewed: new Set(
+      byName('outreach.reviewed')
+        .filter(
+          (event) =>
+            payloadOf(event, 'outreach.reviewed').outcome !== 'deferred',
+        )
+        .map((event) => event.jobId!),
+    ),
     emailAccepted: jobsWith('email.accepted'),
     linkedinRecorded: jobsWith('linkedin.recorded'),
   };

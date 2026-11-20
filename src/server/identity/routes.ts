@@ -29,7 +29,7 @@ import {
   normalizeDomain,
   parseIdentityKey,
 } from './normalize.js';
-import { requeueCapped } from './queue.js';
+import { requeueCapped, saveCapSettings } from './queue.js';
 import { resolveIdentityTicket } from './resolve.js';
 import { lockApplicant } from './tickets.js';
 
@@ -316,11 +316,7 @@ export async function registerIdentityRoutes(
   app.put('/api/identity/cap-settings', async (req) => {
     const owner = await auth.dashboardOwner(req, true);
     const input = capSettingsInput.parse(req.body);
-    await db.query(
-      `INSERT INTO cap_settings (applicant_id,cap_limit,window_months) VALUES ($1,$2,$3)
-       ON CONFLICT (applicant_id) DO UPDATE SET cap_limit=EXCLUDED.cap_limit,window_months=EXCLUDED.window_months,updated_at=now()`,
-      [owner, input.limit, input.windowMonths],
-    );
+    await saveCapSettings(db, owner, input);
     return input;
   });
 }

@@ -3,6 +3,8 @@
  * reuse whenever polarity, time horizon, location, numbers or other material qualifiers
  * differ, regardless of the equivalence score.
  */
+import { HttpError } from '../ledger.js';
+
 const numberWords: Record<string, string> = {
   one: '1',
   two: '2',
@@ -16,22 +18,46 @@ const numberWords: Record<string, string> = {
   ten: '10',
 };
 
-/** Lowercase, drop punctuation, "(required)" markers and repeated whitespace. */
+/**
+ * The answer-bank key: NFKC, lowercase, "(required)"/"(optional)" markers and apostrophes
+ * dropped, other punctuation folded to spaces, whitespace collapsed. It keeps every Unicode
+ * letter, mark and digit, currency symbols and the characters that carry meaning in skill
+ * names (`+`, `#`, and `.` inside a token), so "C++", "C#" and "C", "€" and "£", ".NET" and
+ * "NET" or non-Latin questions never share a key. May return "" for a question with no
+ * letters or digits; callers must refuse an empty key (see `questionKey`).
+ */
 export function normalizeQuestion(text: string): string {
-  return text
-    .normalize('NFKC')
-    .toLowerCase()
-    .replace(/\(required\)|\(optional\)/g, ' ')
-    .replace(/[’‘]/g, "'")
-    .replace(/[^a-z0-9$'\s]/g, ' ')
-    .replace(/'/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return (
+    text
+      .normalize('NFKC')
+      .toLowerCase()
+      .replace(/\(required\)|\(optional\)/g, ' ')
+      .replace(/[’‘]/g, "'")
+      .replace(/[^\p{L}\p{M}\p{N}\p{Sc}+#.'\s]/gu, ' ')
+      .replace(/'/g, '')
+      // A period only survives inside a token (".net", "3.5", "node.js"), not as sentence end.
+      .replace(/\.(?![\p{L}\p{N}])/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  );
 }
 export const normalizeChoice = normalizeQuestion;
 
+/** The stored key for a question; throws 400 rather than store or match on an empty key. */
+export function questionKey(text: string): string {
+  const key = normalizeQuestion(text);
+  if (!key)
+    throw new HttpError(
+      400,
+      'The question has no letters or digits to match on',
+    );
+  return key;
+}
+
+/** Guard tokens: the key with in-token periods split ("u.s" → "u s", "3.5" → "3 5"). */
 function words(text: string): string[] {
   return normalizeQuestion(text)
+    .replace(/\./g, ' ')
     .split(' ')
     .filter(Boolean)
     .map((word) => numberWords[word] ?? word);
@@ -143,7 +169,9 @@ export function profileQuestion(text: string): QuestionProfile {
     locations: [
       ...new Set(locations.filter(([re]) => re.test(joined)).map(([, k]) => k)),
     ].sort(),
-    numbers: [...new Set(tokens.filter((t) => /^\$?\d+[k%]?$/.test(t)))].sort(),
+    numbers: [
+      ...new Set(tokens.filter((t) => /^\p{Sc}?\d+k?$/u.test(t))),
+    ].sort(),
     qualifiers: [
       ...new Set(
         qualifiers.filter(([re]) => re.test(joined)).map(([, k]) => k),

@@ -10,7 +10,14 @@
  */
 import { randomUUID } from 'node:crypto';
 import type { Database, Sql } from '../db.js';
-import { appendEvent, HttpError, jobFromRow } from '../ledger.js';
+import {
+  appendEvent,
+  closeTicketTx,
+  findOpenTicket,
+  HttpError,
+  jobFromRow,
+  openTicketTx,
+} from '../ledger.js';
 import type { Job } from '../../shared/contracts.js';
 import { laLocalDate } from './capdates.js';
 import {
@@ -256,11 +263,37 @@ export async function requeueCapped(
   });
 }
 
+/**
+ * Saves the applicant's cap settings under the same applicant lock `beginSubmit` holds, so a cap
+ * change and a pre-submit check are serialized: the check sees either the old or the new cap,
+ * never a change that lands between its count and its `submitting` write.
+ */
+export async function saveCapSettings(
+  db: Database,
+  applicantId: string,
+  input: { limit: number; windowMonths: number },
+) {
+  await db.transaction(async (sql) => {
+    await lockApplicant(sql, applicantId);
+    await sql.query(
+      `INSERT INTO cap_settings (applicant_id,cap_limit,window_months) VALUES ($1,$2,$3)
+       ON CONFLICT (applicant_id) DO UPDATE SET cap_limit=EXCLUDED.cap_limit,window_months=EXCLUDED.window_months,updated_at=now()`,
+      [applicantId, input.limit, input.windowMonths],
+    );
+  });
+}
+
 export type SubmitCheck =
   | { ok: true; submissionId: string; localDate: string }
   | {
       ok: false;
-      reason: 'capped' | 'held' | 'duplicate' | 'unresolved' | 'not_gateable';
+      reason:
+        | 'capped'
+        | 'held'
+        | 'duplicate'
+        | 'unresolved'
+        | 'not_gateable'
+        | 'not_ready';
       nextAvailableDate?: string;
       heldBy?: string[];
     };
@@ -268,6 +301,13 @@ export type SubmitCheck =
  * Atomic pre-submit check, run immediately before the final click. Under the applicant lock and
  * an employer row lock it rechecks duplicate, cap and hold, then records `submitting` and emits
  * `application.submitting` in the same transaction. A refusal means: do not click.
+ *
+ * Only a `ready` job may be submitted: `ready` is set only by a `passed` eligibility decision
+ * (posting screen, or a user resolution of an eligibility review). A `captured` or
+ * `eligibility_pending` job is refused with `not_ready` and its queue item is left as is.
+ * For 007: the form-source eligibility re-check (`decideEligibility(…, 'form')`) runs on the
+ * filled form *before* this call; an `excluded` or `review` result moves the job off `ready`
+ * (to `eligibility_excluded`, or `paused` on a ticket), so this check then refuses the click.
  */
 export async function beginSubmit(
   db: Database,
@@ -298,6 +338,8 @@ export async function beginSubmit(
         ...(result.status === 'held' ? { heldBy: result.heldBy } : {}),
       };
     }
+    // Never screened, or screening still pending: refuse the click; the queue item stays active.
+    if (job.status !== 'ready') return { ok: false, reason: 'not_ready' };
     const localDate = laLocalDate(now);
     const submissionId = randomUUID();
     const inserted = await sql.query(
@@ -342,6 +384,13 @@ export async function confirmSubmission(
     const submission = await submissionFor(sql, applicantId, jobId);
     if (!submission || !['submitting', 'uncertain'].includes(submission.state))
       throw new HttpError(409, 'No submit in progress for this job');
+    await closeUncertainTicketTx(
+      sql,
+      applicantId,
+      jobId,
+      'confirmed',
+      `Confirmed (receipt ${receiptId})`,
+    );
     await sql.query(
       "UPDATE submissions SET state='confirmed',receipt_id=$3,updated_at=now() WHERE job_id=$1 AND applicant_id=$2",
       [jobId, applicantId, receiptId],
@@ -372,10 +421,15 @@ async function markUncertainTx(
     "UPDATE submissions SET state='uncertain',updated_at=now() WHERE job_id=$1 AND applicant_id=$2",
     [jobId, applicantId],
   );
-  await sql.query(
-    "UPDATE jobs SET status='uncertain' WHERE id=$1 AND applicant_id=$2",
-    [jobId, applicantId],
-  );
+  // One open ticket per job: if another lane's ticket is already open (job `paused`), the
+  // uncertain state is still recorded (the submission row holds the employer) but the job
+  // stays paused on that ticket and no second ticket is opened; reconciliation works either way.
+  const existing = await findOpenTicket(sql, applicantId, jobId);
+  if (!existing)
+    await sql.query(
+      "UPDATE jobs SET status='uncertain' WHERE id=$1 AND applicant_id=$2",
+      [jobId, applicantId],
+    );
   await sql.query(
     "UPDATE work_queue SET state='paused',updated_at=now() WHERE job_id=$1 AND applicant_id=$2",
     [jobId, applicantId],
@@ -383,6 +437,45 @@ async function markUncertainTx(
   await appendEvent(sql, applicantId, jobId, 'application.uncertain', {
     reason,
   });
+  if (existing) return;
+  // Ledger trace: an `uncertain_submission` ticket (resolve action `reconcile_submission`)
+  // pauses the job (resume status `uncertain`) until the applicant reconciles it.
+  const job = await loadJob(sql, applicantId, jobId);
+  await openTicketTx(sql, applicantId, jobId, {
+    question:
+      `The application to ${job.employer} (${job.title}) may or may not have been submitted: ${reason}. Check the employer's site or your email, then record whether it went through.`.slice(
+        0,
+        4000,
+      ),
+    choices: ['It was submitted', 'It was not submitted'],
+    employer: job.employer,
+    role: job.title,
+    cause: 'uncertain_submission',
+    resolveAction: 'reconcile_submission',
+  });
+}
+/** Closes the job's open `uncertain_submission` ticket (if any) in the caller's transaction. */
+async function closeUncertainTicketTx(
+  sql: Sql,
+  applicantId: string,
+  jobId: string,
+  nextJobStatus: 'confirmed' | 'ready',
+  value: string,
+) {
+  const ticket = (
+    await sql.query(
+      "SELECT * FROM tickets WHERE job_id=$1 AND applicant_id=$2 AND status='open' AND cause='uncertain_submission' FOR UPDATE",
+      [jobId, applicantId],
+    )
+  ).rows[0];
+  if (!ticket) return;
+  await closeTicketTx(
+    sql,
+    applicantId,
+    ticket,
+    { outcome: 'no_change', value },
+    nextJobStatus,
+  );
 }
 /** Outcome unknown (redirect only, lost response): hold the employer until reconciled. */
 export async function markUncertain(
@@ -414,6 +507,13 @@ export async function reconcileSubmission(
     const submission = await submissionFor(sql, applicantId, jobId);
     if (!submission || !['submitting', 'uncertain'].includes(submission.state))
       throw new HttpError(409, 'Nothing to reconcile for this job');
+    await closeUncertainTicketTx(
+      sql,
+      applicantId,
+      jobId,
+      'ready',
+      'Not submitted; returned to the queue',
+    );
     await sql.query(
       "UPDATE submissions SET state='not_submitted',updated_at=now() WHERE job_id=$1 AND applicant_id=$2",
       [jobId, applicantId],

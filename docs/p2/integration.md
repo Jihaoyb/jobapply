@@ -116,3 +116,60 @@ Covered under "Shared ticket primitive" above. Outreach's tag write and review-r
 - README:
   - The validation section lists `eligibility:replay`, `answers:calibrate` and the outreach verify CLI.
   - A short P2 status section was added.
+
+## Review fixes
+
+Fixes for the verified findings of the P2 review. Contracts v1 is unchanged and there is no new migration. Every fix has a regression test that fails on the previous code:
+
+- `tests/outreach-delivery-safety.test.ts`
+- `tests/identity-review-fixes.test.ts`
+- `tests/answers-review-fixes.test.ts`
+- additions to `tests/identity-queue.test.ts` and the report fixture
+
+1. **No second SMTP send after acceptance** (`outreach/delivery.ts`).
+   - The SMTP call has its own `try`. Only an SMTP error can return a delivery to `pending`, and only a refusal does so.
+   - After SMTP accepts, `recordAccepted` writes `accepted` with the SMTP message ID. The write is guarded by `AND status='sending'`, so it is idempotent, and it is retried up to 3 times.
+   - If those writes still fail, the delivery is marked `uncertain` and gets an `uncertain_email` ticket. If that write fails too, the row stays `sending`, and `recoverInterruptedSends` marks it uncertain once this process no longer owns it. The ticket text now says "may have been sent" rather than "timed out".
+   - The delivery is added to `inFlight` **before** the pending→sending claim and removed in `finally`, including when the claim fails. The sweep therefore never marks an in-flight send uncertain.
+2. **Merge primary** (`identity/employers.ts`). On a requisition collision, the primary record is chosen in this order:
+   1. a job with a submission in any state except `not_submitted`;
+   2. a job in a non-gateable status;
+   3. an unsubmitted gateable sighting.
+
+   The older job wins a tie. Only an unsubmitted gateable job becomes `duplicate` and leaves the queue. The test reproduces the reviewer's scenario end to end: after the merge, `gateBeforeEligibility` and `dequeueNext` refuse the older sighting.
+
+3. **Submit requires eligibility** (`identity/queue.ts`).
+   - `beginSubmit` refuses any job that is not `ready` with `{ok:false, reason:'not_ready'}`. The duplicate/cap/hold gate runs first, so those refusals still settle the queue item. A `not_ready` refusal leaves the item active.
+   - **For 007:** run the form-source eligibility check (`decideEligibility(…, 'form')`) on the filled form _before_ `beginSubmit`. An `excluded` result (→ `eligibility_excluded`) or `review` result (→ `paused`) moves the job off `ready`, so `beginSubmit` then refuses the click.
+   - `PUT /api/identity/cap-settings` now goes through `saveCapSettings`. It writes under the same applicant advisory lock as `beginSubmit`, so a cap change and a pre-submit check are serialized.
+4. **Lossless answer keys** (`answers/normalize.ts`, `bank.ts`, `session.ts`).
+   - `normalizeQuestion` keeps Unicode letters, marks and digits, currency symbols, `+`, `#`, and `.` inside a token (`.net`, `3.5`). A sentence-final period is dropped. As a result, `C++`, `C#` and `C`, `€` and `£`, and `.NET` and `NET` all get different keys, and non-Latin questions are no longer empty. `U.S.` now keys as `u.s`.
+   - An empty key is never stored or matched:
+     - `upsertAnswer` uses `questionKey`, which returns 400.
+     - `resolveField` pauses with `unreadable_question`.
+     - `proposeAlias` skips the alias.
+   - Exact and alias hits must pass `guardMismatches` on the raw texts. For an alias, both the alias question and the answer's question are checked against the asked question. A blocked hit pauses with `qualifier_mismatch` and offers the blocked answer as the suggestion.
+   - **Stored keys:** there is no SQL migration, because SQL cannot reproduce the JS normalizer. The only deployed data is seeds. Instead, the idempotent `renormalizeAnswerKeys` runs at boot (`main.ts`, after `migrate`) and `seedProfileAnswers` runs it before inserting, so re-seeding never duplicates a seed.
+     - The new key is strictly finer than the old one, so two stored rows cannot collide.
+     - If a row's new key is already taken by a newer row, the row keeps its old key and is flagged `needs_review`; an alias in that case is deleted as a redundant twin.
+5. **Report: deferred is not reviewed** (`report/compute.ts`). The funnel's "Outreach reviewed" stage now leaves out `outreach.reviewed` events with outcome `deferred`, the same rule as the outreach corrections denominator. Deferred outcomes still appear in the outreach outcome counts. Changes to the fixture and tests:
+   - The reconciling fixture's `c5` now has a deferred review, and the expected stage total stays at 7.
+   - The independent SQL check applies the same exclusion.
+6. **Import matches in-flight submissions** (`identity/importer.ts`). An import row now links to a matching live submission in `submitting` or `uncertain` state, as well as `confirmed`, and is not counted a second time.
+7. **Uncertain submissions leave a ledger trace** (`identity/queue.ts`).
+   - `markUncertainTx` opens an `uncertain_submission`/`reconcile_submission` ticket via `openTicketTx`. The job is `paused` with `resume_status='uncertain'`, and `pause.opened` is emitted.
+   - Reconciliation (`confirmSubmission`, `reconcileSubmission`) closes the ticket via `closeTicketTx` with outcome `no_change`. The next status is `confirmed` or `ready`.
+   - One-open-ticket policy: if another lane's ticket is already open, the uncertain state is still recorded (the submission row holds the employer and `application.uncertain` is emitted), but no second ticket is opened, and the job stays paused on the existing ticket.
+8. **`needs_review` answers are never reused automatically.**
+   - These are the seeds and merge conflicts. They are excluded from the exact, alias and Luna tiers.
+   - An unreviewed answer to the same question comes back as a `needs_review` suggestion in the ticket.
+   - Approving the answer (`PATCH /api/answers/:id {reviewed:true}`, the dashboard's "Mark reviewed") clears the flag. The test covers that path and checks that the answer is reused afterwards.
+9. **Env validation** (`outreach/deps.ts`). `positiveNumberEnv` sets `OUTREACH_DAILY_EMAIL_LIMIT`, `GMAIL_SMTP_TIMEOUT_MS` and `GMAIL_SMTP_PORT`. Empty, non-numeric, non-finite, zero or negative values fall back to the default.
+10. **Outreach only for live confirmations** (`outreach/worker.ts`). The worker gate requires an `application.confirmed` event for the job. The gate covers every path in: event, sweep, `POST /run` and retry. Imported-history jobs are `confirmed` without that event, so they log `skipped_not_confirmed` with a detail that names the missing event, and make zero Apollo or Luna calls.
+
+**For review:**
+
+- **(7)** While an uncertain submission is open, the job's status is `paused` (resume `uncertain`), not `uncertain`. Code that reads `jobs.status='uncertain'` must also look at the ticket. There is still no dashboard route that resolves `reconcile_submission` tickets; 007 should call `reconcileSubmission` from the dashboard. A generic Defer of this ticket makes the job `deferred`, but the submission stays `uncertain`, so the employer stays held.
+- **(6)** An import row linked to a `submitting`/`uncertain` live submission depends on that submission's outcome. If it is later reconciled as `not_submitted`, the imported application is not counted on its own.
+- **(4)** `U.S.` no longer shares a key with `U S`, and `.NET` no longer shares one with `NET`. Aliases are the intended bridge for spelling variants.
+- **(2)** A `paused` job ranks as non-gateable, so it stays primary over an older captured sighting.

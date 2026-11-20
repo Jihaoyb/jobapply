@@ -54,7 +54,7 @@ async function markUncertain(
   const job = await jobInfo(deps, applicantId, jobId);
   const delivery = await deliveryRow(deps, applicantId, jobId);
   await openOutreachTicket(deps, applicantId, jobId, 'uncertain_email', {
-    question: `The email to ${delivery.to_address} (“${delivery.subject}”) timed out and may have been sent. Check Gmail Sent before deciding; a retry sends it again.`,
+    question: `The email to ${delivery.to_address} (“${delivery.subject}”) may have been sent: the send timed out or its result could not be recorded. Check Gmail Sent before deciding; a retry sends it again.`,
     choices: ['It was sent', 'Not sent: retry once'],
     employer: job.employer,
     role: job.title,
@@ -102,44 +102,95 @@ export async function deliverEmail(
     );
     return deliveryRow(deps, applicantId, jobId);
   }
-  const claimed = (
-    await deps.db.query(
-      "UPDATE outreach_deliveries SET status='sending',attempts=attempts+1 WHERE id=$1 AND applicant_id=$2 AND status='pending' RETURNING *",
-      [delivery.id, applicantId],
-    )
-  ).rows[0];
-  if (!claimed) return deliveryRow(deps, applicantId, jobId);
-  inFlight.add(claimed.id);
+  // Registered before the claim so the interrupted-send sweep never sees this
+  // row as `sending` without an owner while the SMTP call is in progress.
+  inFlight.add(delivery.id);
   try {
-    const result = await deps.smtp.send({
-      to: claimed.to_address,
-      subject: claimed.subject,
-      body: claimed.body,
-    });
-    await deps.db.transaction(async (sql) => {
-      await sql.query(
-        "UPDATE outreach_deliveries SET status='accepted',accepted_at=now(),smtp_message_id=$3,smtp_response=$4 WHERE id=$1 AND applicant_id=$2",
-        [claimed.id, applicantId, result.messageId, result.response],
-      );
-      await appendEvent(sql, applicantId, jobId, 'email.accepted', {
-        deliveryId: claimed.id,
-      });
-    });
-  } catch (error) {
-    if (error instanceof SmtpTimeoutError) {
-      await markUncertain(deps, applicantId, jobId, claimed.id);
-    } else {
-      // Refused before the message was accepted: nothing was sent, so it may be retried after review.
+    const claimed = (
       await deps.db.query(
-        "UPDATE outreach_deliveries SET status='pending' WHERE id=$1 AND applicant_id=$2 AND status='sending'",
-        [claimed.id, applicantId],
-      );
-      await pauseForProvider(deps, applicantId, job, error, 'Email delivery');
+        "UPDATE outreach_deliveries SET status='sending',attempts=attempts+1 WHERE id=$1 AND applicant_id=$2 AND status='pending' RETURNING *",
+        [delivery.id, applicantId],
+      )
+    ).rows[0];
+    if (!claimed) return deliveryRow(deps, applicantId, jobId);
+    let result: { messageId: string; response: string };
+    try {
+      result = await deps.smtp.send({
+        to: claimed.to_address,
+        subject: claimed.subject,
+        body: claimed.body,
+      });
+    } catch (error) {
+      if (error instanceof SmtpTimeoutError) {
+        await markUncertain(deps, applicantId, jobId, claimed.id);
+      } else {
+        // Refused before the message was accepted: nothing was sent, so it may be retried after review.
+        await deps.db.query(
+          "UPDATE outreach_deliveries SET status='pending' WHERE id=$1 AND applicant_id=$2 AND status='sending'",
+          [claimed.id, applicantId],
+        );
+        await pauseForProvider(deps, applicantId, job, error, 'Email delivery');
+      }
+      return deliveryRow(deps, applicantId, jobId);
     }
+    // SMTP accepted the message. From here on the delivery must never return to
+    // `pending`: a bookkeeping failure becomes `uncertain`, never a resend.
+    await recordAccepted(deps, applicantId, jobId, claimed.id, result);
   } finally {
-    inFlight.delete(claimed.id);
+    inFlight.delete(delivery.id);
   }
   return deliveryRow(deps, applicantId, jobId);
+}
+
+const ACCEPT_WRITE_ATTEMPTS = 3;
+
+/**
+ * Records SMTP acceptance. The write is idempotent (guarded by `status='sending'`
+ * and keyed on the SMTP message ID), so it is retried a few times; if it still
+ * fails the delivery is marked `uncertain` with a reconciliation ticket. If even
+ * that fails, the row stays `sending` and the interrupted-send sweep marks it
+ * uncertain once this process no longer owns it.
+ */
+async function recordAccepted(
+  deps: OutreachDeps,
+  applicantId: string,
+  jobId: string,
+  deliveryId: string,
+  result: { messageId: string; response: string },
+) {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= ACCEPT_WRITE_ATTEMPTS; attempt++) {
+    try {
+      await deps.db.transaction(async (sql) => {
+        const updated = await sql.query(
+          "UPDATE outreach_deliveries SET status='accepted',accepted_at=now(),smtp_message_id=$3,smtp_response=$4 WHERE id=$1 AND applicant_id=$2 AND status='sending' RETURNING id",
+          [deliveryId, applicantId, result.messageId, result.response],
+        );
+        if (!updated.rows.length) return;
+        await appendEvent(sql, applicantId, jobId, 'email.accepted', {
+          deliveryId,
+        });
+      });
+      return;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  deps.log('outreach accepted-write failed; marking uncertain', {
+    jobId,
+    deliveryId,
+    smtpMessageId: result.messageId,
+    error: String(lastError),
+  });
+  try {
+    await markUncertain(deps, applicantId, jobId, deliveryId);
+  } catch (error) {
+    deps.log('outreach uncertain-write failed; left for the sweep', {
+      jobId,
+      deliveryId,
+      error: String(error),
+    });
+  }
 }
 
 /** A `sending` row not owned by this process was interrupted mid-send: its outcome is unknown. */

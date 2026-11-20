@@ -25,7 +25,11 @@ import {
   type CallModel,
   type Candidate,
 } from './equivalence.js';
-import { matchChoice, normalizeQuestion } from './normalize.js';
+import {
+  guardMismatches,
+  matchChoice,
+  normalizeQuestion,
+} from './normalize.js';
 
 export interface AnswerDeps {
   /** The shared wrapper (configuredModelCaller). Absent means Luna is not configured. */
@@ -68,7 +72,13 @@ function overlap(a: string, b: string) {
   return shared / Math.max(1, new Set([...x, ...y]).size);
 }
 
-/** Tiers: scoped exact match → approved alias → guarded Luna equivalence. */
+/**
+ * Tiers: scoped exact match → approved alias → guarded Luna equivalence. Exact and alias hits
+ * also pass the deterministic guards (polarity, time horizon, location, numbers, qualifiers)
+ * on the raw question texts, so a key collision can never reuse an answer silently. Answers
+ * flagged `needs_review` (seeds, merge conflicts) are never reused automatically; they are
+ * offered as the ticket's suggestion instead until the applicant approves them.
+ */
 export async function resolveField(
   db: Database,
   deps: AnswerDeps,
@@ -76,31 +86,48 @@ export async function resolveField(
   field: FormField,
 ): Promise<FieldResolution> {
   const normalized = normalizeQuestion(field.question);
-  const rows = (
+  // An empty key (no letters or digits) matches nothing: ask the applicant.
+  if (!normalized)
+    return {
+      status: 'needs_answer',
+      reason: 'unreadable_question',
+      suggestion: null,
+    };
+  const all = (
     await answersInScope(db, ctx.applicantId, ctx.jobId, ctx.employerId)
   ).sort((a, b) => scopeRank[a.scope]! - scopeRank[b.scope]!);
+  const rows = all.filter((row) => !row.needs_review);
   const exact = rows.filter((row) => row.normalized_question === normalized);
+  let blocked: { row: any; blockedBy: string[] } | null = null;
   for (const row of exact) {
+    const blockedBy = guardMismatches(row.question, field.question);
+    if (blockedBy.length) {
+      blocked ??= { row, blockedBy };
+      continue;
+    }
     const value = matchChoice(row.answer, field.choices);
     if (value !== null)
       return {
         status: 'answered',
         answer: { value, tier: 'exact', answerId: row.id },
       };
+    blocked ??= { row, blockedBy: ['choices'] };
   }
-  if (exact.length)
+  if (blocked)
     return {
       status: 'needs_answer',
-      reason: 'choices_incompatible',
+      reason: blocked.blockedBy.includes('choices')
+        ? 'choices_incompatible'
+        : 'qualifier_mismatch',
       suggestion: {
-        answer: exact[0].answer,
-        question: exact[0].question,
-        blockedBy: ['choices'],
+        answer: blocked.row.answer,
+        question: blocked.row.question,
+        blockedBy: blocked.blockedBy,
       },
     };
   const aliases = (
     await db.query(
-      `SELECT answer_id, canonical_employer_id FROM answer_aliases WHERE applicant_id=$1 AND status='approved'
+      `SELECT answer_id, canonical_employer_id, question FROM answer_aliases WHERE applicant_id=$1 AND status='approved'
        AND normalized_question=$2 AND (canonical_employer_id IS NULL OR canonical_employer_id=$3::uuid)`,
       [ctx.applicantId, normalized, ctx.employerId],
     )
@@ -111,13 +138,48 @@ export async function resolveField(
   );
   for (const alias of aliases) {
     const row = rows.find((r) => r.id === alias.answer_id);
-    const value = row ? matchChoice(row.answer, field.choices) : null;
-    if (row && value !== null)
+    if (!row) continue;
+    const blockedBy = [
+      ...new Set([
+        ...guardMismatches(alias.question, field.question),
+        ...guardMismatches(row.question, field.question),
+      ]),
+    ];
+    if (blockedBy.length) {
+      blocked ??= { row, blockedBy };
+      continue;
+    }
+    const value = matchChoice(row.answer, field.choices);
+    if (value !== null)
       return {
         status: 'answered',
         answer: { value, tier: 'alias', answerId: row.id },
       };
   }
+  if (blocked)
+    return {
+      status: 'needs_answer',
+      reason: 'qualifier_mismatch',
+      suggestion: {
+        answer: blocked.row.answer,
+        question: blocked.row.question,
+        blockedBy: blocked.blockedBy,
+      },
+    };
+  // An unreviewed answer to this exact question is offered, never filled in.
+  const unreviewed = all.find(
+    (row) => row.needs_review && row.normalized_question === normalized,
+  );
+  if (unreviewed)
+    return {
+      status: 'needs_answer',
+      reason: 'needs_review',
+      suggestion: {
+        answer: unreviewed.answer,
+        question: unreviewed.question,
+        blockedBy: ['needs_review'],
+      },
+    };
   // One candidate per normalized question, keeping the most specific scope.
   const seen = new Set<string>();
   const candidates: Candidate[] = rows

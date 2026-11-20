@@ -8,6 +8,7 @@ import {
   events,
   jobRow,
   openTickets,
+  passEligibility,
   queueRow,
 } from './fixtures/identity/helpers.js';
 import { importHistory } from '../src/server/identity/importer.js';
@@ -189,6 +190,7 @@ test('the atomic pre-submit check refuses the click after a cap change and recor
       payload: { limit: 1, windowMonths: 3 },
     });
     assert.equal(changed.statusCode, 200, changed.body);
+    await passEligibility(f.db, job.id);
     const check = await beginSubmit(f.db, f.alice, job.id, now);
     assert.deepEqual(check, {
       ok: false,
@@ -232,6 +234,7 @@ test('an interrupted submit becomes uncertain and holds its employer until recon
         'https://jobs.ashbyhq.com/globex/0f1e2d3c-aaaa-bbbb-cccc-000000000001',
     });
     assert.equal((await dequeueNext(f.db, f.alice, now))?.job.id, a1.id);
+    await passEligibility(f.db, a1.id);
     const check = await beginSubmit(f.db, f.alice, a1.id, now);
     assert.equal(check.ok, true);
     assert.equal((await jobRow(f.db, a1.id)).status, 'submitting');
@@ -246,7 +249,15 @@ test('an interrupted submit becomes uncertain and holds its employer until recon
       other.id,
       'same-employer job is held, other employer proceeds',
     );
-    assert.equal((await jobRow(f.db, a1.id)).status, 'uncertain');
+    // The uncertain submit leaves a ledger trace: an uncertain_submission ticket pauses the
+    // job (resume status `uncertain`) until reconciliation.
+    assert.equal((await jobRow(f.db, a1.id)).status, 'paused');
+    const [uncertainTicket] = (await openTickets(f.db, f.alice)).filter(
+      (t) => t.job_id === a1.id,
+    );
+    assert.equal(uncertainTicket.cause, 'uncertain_submission');
+    assert.equal(uncertainTicket.resolve_action, 'reconcile_submission');
+    assert.equal(uncertainTicket.resume_status, 'uncertain');
     const uncertain = await events(f.db, f.alice, 'application.uncertain');
     assert.equal(uncertain.length, 1);
     assert.equal(uncertain[0].job_id, a1.id);
@@ -272,6 +283,13 @@ test('an interrupted submit becomes uncertain and holds its employer until recon
     await reconcileSubmission(f.db, f.alice, a1.id, {
       outcome: 'not_submitted',
     });
+    const closed = (
+      await f.db.query('SELECT * FROM tickets WHERE id=$1', [
+        uncertainTicket.id,
+      ])
+    ).rows[0];
+    assert.equal(closed.status, 'resolved');
+    assert.equal((await jobRow(f.db, a1.id)).status, 'ready');
     const resumed = await dequeueNext(f.db, f.alice, now);
     assert.equal(resumed?.job.id, a1.id);
     // Redirect-only outcome on retry: uncertain again, then reconciled as confirmed.
@@ -282,11 +300,37 @@ test('an interrupted submit becomes uncertain and holds its employer until recon
       a1.id,
       'Redirect without acknowledgement',
     );
+    assert.equal(
+      (await openTickets(f.db, f.alice)).filter((t) => t.job_id === a1.id)
+        .length,
+      1,
+    );
     await reconcileSubmission(f.db, f.alice, a1.id, {
       outcome: 'confirmed',
       receiptId: randomUUID(),
     });
     assert.equal((await jobRow(f.db, a1.id)).status, 'confirmed');
+    assert.equal(
+      (await openTickets(f.db, f.alice)).filter((t) => t.job_id === a1.id)
+        .length,
+      0,
+    );
+    // Both pause episodes are closed in the ledger (the report's pause chart resolves them).
+    const pauses = (
+      await f.db.query(
+        "SELECT name, payload FROM ledger_events WHERE job_id=$1 AND name IN ('pause.opened','pause.closed') ORDER BY occurred_at, id",
+        [a1.id],
+      )
+    ).rows;
+    assert.deepEqual(
+      pauses.map((e) => [e.name, e.payload.cause]),
+      [
+        ['pause.opened', 'uncertain_submission'],
+        ['pause.closed', 'uncertain_submission'],
+        ['pause.opened', 'uncertain_submission'],
+        ['pause.closed', 'uncertain_submission'],
+      ],
+    );
     const proceed = await dequeueNext(f.db, f.alice, now);
     assert.equal(proceed?.job.id, a2.id);
   } finally {

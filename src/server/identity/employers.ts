@@ -208,8 +208,9 @@ export async function mergeSuggestions(
 /**
  * Merges `sourceId` into `targetId`: aliases, jobs, dedupe keys, submissions, links,
  * employer-scoped answers/answer aliases and earlier merges move to the target so cap and dedupe
- * checks see one combined history. A requisition known on both sides keeps the older job as the
- * primary record and links the newer one as a duplicate.
+ * checks see one combined history. A requisition known on both sides keeps the submitted (or
+ * otherwise no longer gateable) job as the primary record, else the older one, and links the
+ * other as a duplicate.
  */
 export async function mergeEmployers(
   sql: Sql,
@@ -229,9 +230,17 @@ export async function mergeEmployers(
     target = rows.find((row) => row.id === targetId);
   if (!source || !target || source.merged_into || target.merged_into)
     throw new HttpError(404, 'Employer not found');
+  // Primary record on a requisition collision: a job with a live/imported submission in any
+  // state but `not_submitted` (rank 2), then a job no longer in a gateable status (rank 1), then
+  // an unsubmitted gateable sighting (rank 0); the older job wins a tie. So only an unsubmitted
+  // gateable job is ever stopped as the duplicate of a submitted one, never the reverse.
+  const rank = (alias: string, job: string) =>
+    `CASE WHEN EXISTS (SELECT 1 FROM submissions x WHERE x.job_id=${alias}.job_id AND x.applicant_id=${alias}.applicant_id AND x.state<>'not_submitted') THEN 2
+          WHEN ${job}.status NOT IN ('captured','eligibility_pending','ready') THEN 1 ELSE 0 END`;
   const collisions = (
     await sql.query(
       `SELECT s.job_id AS source_job, t.job_id AS target_job,
+        ${rank('s', 'sj')} AS source_rank, ${rank('t', 'tj')} AS target_rank,
         (sj.created_at, sj.id) < (tj.created_at, tj.id) AS source_older
        FROM job_identity s JOIN job_identity t
          ON t.applicant_id=s.applicant_id AND t.requisition_id=s.requisition_id
@@ -242,25 +251,31 @@ export async function mergeEmployers(
     )
   ).rows;
   for (const collision of collisions) {
-    const [newer, older] = collision.source_older
+    const sourceRank = Number(collision.source_rank),
+      targetRank = Number(collision.target_rank);
+    const sourcePrimary =
+      sourceRank !== targetRank
+        ? sourceRank > targetRank
+        : collision.source_older;
+    const [duplicate, primary] = sourcePrimary
       ? [collision.target_job, collision.source_job]
       : [collision.source_job, collision.target_job];
     await sql.query(
       'UPDATE job_identity SET duplicate_of=$3 WHERE job_id=$1 AND applicant_id=$2',
-      [newer, applicantId, older],
+      [duplicate, applicantId, primary],
     );
     // A not-yet-submitted sighting leaves the queue now, before any eligibility work.
     const stopped = await sql.query(
       "UPDATE jobs SET status='duplicate' WHERE id=$1 AND applicant_id=$2 AND status IN ('captured','eligibility_pending','ready') RETURNING id",
-      [newer, applicantId],
+      [duplicate, applicantId],
     );
     if (stopped.rows.length) {
-      await appendEvent(sql, applicantId, newer, 'job.duplicate', {
-        existingJobId: older,
+      await appendEvent(sql, applicantId, duplicate, 'job.duplicate', {
+        existingJobId: primary,
       });
       await sql.query(
         "UPDATE work_queue SET state='stopped',stop_reason='duplicate',hold_reason=NULL,updated_at=now() WHERE job_id=$1 AND applicant_id=$2 AND state IN ('queued','active','paused')",
-        [newer, applicantId],
+        [duplicate, applicantId],
       );
     }
   }

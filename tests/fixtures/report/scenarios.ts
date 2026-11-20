@@ -246,7 +246,15 @@ export const fullWeek: Scenario = {
       key: 'c5',
       host: 'greenhouse',
       at: at(2, 2),
-      steps: [passed, { t: 'submit' }, { t: 'confirm' }, { t: 'shortlist' }],
+      // A deferred outreach review is not a review: it counts in neither the funnel's
+      // "Outreach reviewed" stage nor the outreach corrections denominator.
+      steps: [
+        passed,
+        { t: 'submit' },
+        { t: 'confirm' },
+        { t: 'shortlist' },
+        { t: 'oreview', outcome: 'deferred' },
+      ],
     },
     {
       key: 'c6',
@@ -500,7 +508,7 @@ export const fullWeekExpected: ExpectedScenario = {
     confirmed: row(11, h(8, 2, 1, null)), // gh: c1-c7 u2 (late confirms after cutoff)
     uncertain: row(1, h(1, 0, 0, null)), // u1 (u2 later confirmed)
     outreachShortlisted: row(8, h(6, 1, 1, 0)),
-    outreachReviewed: row(7, h(5, 1, 1, 0)),
+    outreachReviewed: row(7, h(5, 1, 1, 0)), // c5's deferred review is excluded
     emailAccepted: row(4, h(3, 1, 0, 0)), // c1 c2 c7 lc1
     linkedinRecorded: row(3, h(2, 0, 1, 0)), // c1 c3 ac1
   },

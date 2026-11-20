@@ -18,7 +18,7 @@ This lane covers the matching core, scoped saves, guarded Luna equivalence, the 
 
 ## Resolution tiers
 
-1. **Scoped exact match** on the normalized question. Precedence runs one-time (this job), then employer (canonical employer ID), then global. The answer must map to one of the form's choices: an exact match, or a bare Yes/No mapped to the single choice that starts with it. An exact match whose answer is not a valid choice pauses (`choices_incompatible`).
+1. **Scoped exact match** on the normalized question (lossless key and deterministic guards on the raw texts since the review fixes; `needs_review` answers are only suggested, never reused — see integration.md, "Review fixes"). Precedence runs one-time (this job), then employer (canonical employer ID), then global. The answer must map to one of the form's choices: an exact match, or a bare Yes/No mapped to the single choice that starts with it. An exact match whose answer is not a valid choice pauses (`choices_incompatible`).
 2. **Approved aliases** for the normalized question. Employer-specific aliases come before global ones, and they are still limited to in-scope answers and valid choices.
 3. **Guarded Luna equivalence.** Up to 10 in-scope candidates go to Luna in one call: one per normalized question, keeping the most specific scope, ranked by word overlap. Only questions are sent, never saved answers. A candidate is reusable only if all of these hold:
    - Luna says it is equivalent with a score at or above the threshold.

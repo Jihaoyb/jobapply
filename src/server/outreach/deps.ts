@@ -30,19 +30,35 @@ export type OutreachKind =
   'employer' | 'domain' | 'provider' | 'review' | 'uncertain_email';
 
 /** Production wiring. Every credential is read from server env only; none is required to boot. */
+/**
+ * Reads a positive numeric env var. Empty, non-numeric, zero or negative values
+ * fall back to the default (an empty string would otherwise become 0 and NaN
+ * would silently disable a limit).
+ */
+export function positiveNumberEnv(
+  name: string,
+  fallback: number,
+  env: Record<string, string | undefined> = process.env,
+) {
+  const raw = env[name]?.trim();
+  if (!raw) return fallback;
+  const value = Number(raw);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
 export function configuredOutreachDeps(db: Database): OutreachDeps {
   return {
     db,
     apollo: httpApollo(process.env.APOLLO_API_KEY || undefined),
     smtp: gmailSmtp({
       host: process.env.GMAIL_SMTP_HOST ?? 'smtp.gmail.com',
-      port: Number(process.env.GMAIL_SMTP_PORT ?? 465),
+      port: positiveNumberEnv('GMAIL_SMTP_PORT', 465),
       user: process.env.GMAIL_SMTP_USER || undefined,
       appPassword: process.env.GMAIL_APP_PASSWORD || undefined,
-      timeoutMs: Number(process.env.GMAIL_SMTP_TIMEOUT_MS ?? 30_000),
+      timeoutMs: positiveNumberEnv('GMAIL_SMTP_TIMEOUT_MS', 30_000),
     }),
     callModel: configuredModelCaller(db),
-    dailyEmailLimit: Number(process.env.OUTREACH_DAILY_EMAIL_LIMIT ?? 20),
+    dailyEmailLimit: positiveNumberEnv('OUTREACH_DAILY_EMAIL_LIMIT', 20),
     log: (message, data) =>
       console.log(JSON.stringify({ scope: 'outreach', message, ...data })),
   };

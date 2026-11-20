@@ -8,6 +8,7 @@ import {
   events,
   jobRow,
   openTickets,
+  passEligibility,
   queueRow,
 } from './fixtures/identity/helpers.js';
 import { importHistory } from '../src/server/identity/importer.js';
@@ -107,6 +108,7 @@ test('re-importing and matching an existing confirmed job keep a single submissi
       applicationUrl: 'https://boards.greenhouse.io/soylent/jobs/42',
     });
     assert.equal((await dequeueNext(f.db, f.alice, nov8))?.job.id, live.id);
+    await passEligibility(f.db, live.id);
     assert.equal((await beginSubmit(f.db, f.alice, live.id, nov8)).ok, true);
     await confirmSubmission(f.db, f.alice, live.id, randomUUID());
     const file = csv(

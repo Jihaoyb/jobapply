@@ -47,3 +47,7 @@ export async function openTickets(db: Database, applicantId: string) {
 export function csv(...rows: string[]) {
   return ['employer,title,date,source URL', ...rows].join('\n');
 }
+/** Stands in for a `passed` eligibility decision (lane B): only a `ready` job may be submitted. */
+export async function passEligibility(db: Database, jobId: string) {
+  await db.query("UPDATE jobs SET status='ready' WHERE id=$1", [jobId]);
+}

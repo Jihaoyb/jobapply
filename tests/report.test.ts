@@ -190,7 +190,9 @@ test('chart numbers match independent SQL counts over the ledger', async () => {
       Number(
         (
           await f.db.query(
-            `SELECT count(DISTINCT job_id) AS n FROM ledger_events WHERE applicant_id=$1 AND name=$4 AND occurred_at<=$3 AND job_id IN (${pilot})`,
+            // A deferred outreach review is not a review (same rule as the corrections denominator).
+            `SELECT count(DISTINCT job_id) AS n FROM ledger_events WHERE applicant_id=$1 AND name=$4 AND occurred_at<=$3 AND job_id IN (${pilot})
+               AND NOT (name='outreach.reviewed' AND payload->>'outcome'='deferred')`,
             [f.alice, start, cutoff, name],
           )
         ).rows[0]!.n,
