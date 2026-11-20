@@ -4,6 +4,7 @@ import { migrate } from '../../../src/server/db.js';
 import { createApp, type AppConfig } from '../../../src/server/app.js';
 import { appendEvent, captureJob } from '../../../src/server/ledger.js';
 import { modelCaller } from '../../../src/server/model.js';
+import { resolveIdentityTicket } from '../../../src/server/identity/resolve.js';
 import type { OutreachDeps } from '../../../src/server/outreach/deps.js';
 import { localDatabase } from '../../../scripts/local-db.js';
 import { origin, password } from '../../helpers.js';
@@ -98,6 +99,19 @@ export async function outreachFixture() {
       options.employerId === undefined
         ? await employer(undefined, undefined, owner)
         : options.employerId;
+    // Capture may pause on a lane A identity ticket (e.g. the fixture employer is a plausible
+    // match). A position is only confirmed after identity is resolved, so resolve it first.
+    const identityTicket = (
+      await db.query(
+        "SELECT t.id FROM tickets t JOIN identity_tickets i ON i.ticket_id=t.id WHERE t.job_id=$1 AND t.status='open'",
+        [created.id],
+      )
+    ).rows[0];
+    if (identityTicket && employerId)
+      await resolveIdentityTicket(db, owner, identityTicket.id, {
+        action: 'assign',
+        employerId,
+      });
     await db.query(
       'UPDATE jobs SET status=$3, canonical_employer_id=$4 WHERE id=$1 AND applicant_id=$2',
       [created.id, owner, options.status ?? 'confirmed', employerId],

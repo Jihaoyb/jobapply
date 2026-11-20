@@ -107,7 +107,7 @@ export async function prepareReview(
   applicantId: string,
   job: Job,
   shortlistId: string,
-): Promise<'review_opened' | 'paused_provider'> {
+): Promise<'review_opened' | 'paused_provider' | 'deferred_open_ticket'> {
   let candidate = (
     await deps.db.query(
       'SELECT * FROM outreach_candidates WHERE shortlist_id=$1 AND applicant_id=$2 ORDER BY rank LIMIT 1',
@@ -137,29 +137,42 @@ export async function prepareReview(
       [shortlistId, applicantId],
     )
   ).rows.map((row) => `${row.name} (${row.title})`);
-  const ticket = await openOutreachTicket(deps, applicantId, job.id, 'review', {
-    question: `Review outreach for ${job.title}: recommended recipient ${candidate.name}. Approve, edit, change the recipient, or skip.`,
-    choices: names,
-    employer: job.employer,
-    role: job.title,
-    cause: 'unanswered_question',
-    resolveAction: 'review_outreach',
-  });
-  await deps.db.query(
-    `INSERT INTO outreach_reviews (id,applicant_id,job_id,shortlist_id,ticket_id,candidate_id,status,email_subject,email_body,linkedin_note,drafts_candidate_id)
-     VALUES ($1,$2,$3,$4,$5,$6,'ready',$7,$8,$9,$6)`,
-    [
-      randomUUID(),
-      applicantId,
-      job.id,
-      shortlistId,
-      ticket.id,
-      candidate.id,
-      drafts.emailSubject,
-      drafts.emailBody,
-      drafts.linkedinNote,
-    ],
+  const ticket = await openOutreachTicket(
+    deps,
+    applicantId,
+    job.id,
+    'review',
+    {
+      question: `Review outreach for ${job.title}: recommended recipient ${candidate.name}. Approve, edit, change the recipient, or skip.`,
+      choices: names,
+      employer: job.employer,
+      role: job.title,
+      // v1 has no outreach-review cause; the report attributes resolve_action
+      // review_outreach separately ("outreach review").
+      cause: 'unanswered_question',
+      resolveAction: 'review_outreach',
+    },
+    [],
+    // The review row commits with its ticket and pause.
+    async (sql, opened) => {
+      await sql.query(
+        `INSERT INTO outreach_reviews (id,applicant_id,job_id,shortlist_id,ticket_id,candidate_id,status,email_subject,email_body,linkedin_note,drafts_candidate_id)
+         VALUES ($1,$2,$3,$4,$5,$6,'ready',$7,$8,$9,$6)`,
+        [
+          randomUUID(),
+          applicantId,
+          job.id,
+          shortlistId,
+          opened.id,
+          candidate.id,
+          drafts.emailSubject,
+          drafts.emailBody,
+          drafts.linkedinNote,
+        ],
+      );
+    },
   );
+  if (!ticket) return 'deferred_open_ticket';
   await logWorker(deps, applicantId, job.id, 'review_opened', candidate.id);
   return 'review_opened';
 }

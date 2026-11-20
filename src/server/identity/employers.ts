@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Sql } from '../db.js';
 import { appendEvent, HttpError } from '../ledger.js';
+import { mergeEmployerAnswersTx } from '../answers/merge.js';
 import {
   keyNameStem,
   normalizeEmployerName,
@@ -205,9 +206,10 @@ export async function mergeSuggestions(
 }
 
 /**
- * Merges `sourceId` into `targetId`: aliases, jobs, dedupe keys, submissions and earlier merges
- * move to the target so cap and dedupe checks see one combined history. A requisition known on
- * both sides keeps the older job as the primary record and links the newer one as a duplicate.
+ * Merges `sourceId` into `targetId`: aliases, jobs, dedupe keys, submissions, links,
+ * employer-scoped answers/answer aliases and earlier merges move to the target so cap and dedupe
+ * checks see one combined history. A requisition known on both sides keeps the older job as the
+ * primary record and links the newer one as a duplicate.
  */
 export async function mergeEmployers(
   sql: Sql,
@@ -287,6 +289,8 @@ export async function mergeEmployers(
     'UPDATE employer_links SET employer_id=$3 WHERE applicant_id=$1 AND employer_id=$2',
     params,
   );
+  // Lane C: employer-scoped answers and aliases (conflict rule in answers/merge.ts).
+  await mergeEmployerAnswersTx(sql, applicantId, sourceId, targetId);
   if (!target.domain && source.domain)
     await sql.query(
       'UPDATE employers SET domain=$3 WHERE id=$2 AND applicant_id=$1',

@@ -58,6 +58,17 @@ export type FunnelStageKey = (typeof funnelStages)[number]['key'];
 export type StageGroup = (typeof funnelStages)[number]['group'];
 
 export type PauseCause = (typeof pauseCauses)[number];
+/**
+ * Report rows for pauses: the nine v1 causes plus `outreach_review`. Lane D's review tickets
+ * carry cause `unanswered_question` (v1 has no review cause); the report attributes tickets
+ * with resolve_action `review_outreach` to this separate row so real unanswered-question
+ * waiting time is not inflated.
+ */
+export const pauseCategories = [...pauseCauses, 'outreach_review'] as const;
+export type PauseCategory = (typeof pauseCategories)[number];
+export function pauseCategoryLabel(category: PauseCategory) {
+  return category.replaceAll('_', ' ');
+}
 export type ReviewOutcome = (typeof reviewOutcomes)[number];
 
 /** A host or outreach step's observed coverage inside the report window. */
@@ -107,7 +118,10 @@ export interface PauseEpisode {
   pauseId: string;
   ticketId: string;
   jobId: string;
+  /** The v1 cause on the pause events. */
   cause: PauseCause;
+  /** The report row it counts under (see `pauseCategories`). */
+  category: PauseCategory;
   openedAt: string;
   closedAt: string | null;
   open: boolean;
@@ -117,7 +131,8 @@ export interface PauseEpisode {
   closedEventId: string | null;
 }
 export interface PauseCauseRow {
-  cause: PauseCause;
+  cause: PauseCategory;
+  label: string;
   /** Null when the cause cannot occur without uncovered sources and none occurred. */
   episodes: Count;
   distinctJobs: Count;
@@ -185,12 +200,12 @@ export interface BottleneckRecord {
 }
 export interface Bottleneck {
   rule: string;
-  cause: PauseCause;
+  cause: PauseCategory;
   waitingMs: number;
   distinctJobs: number;
   episodes: number;
   records: BottleneckRecord[];
-  ranking: { cause: PauseCause; waitingMs: number; distinctJobs: number }[];
+  ranking: { cause: PauseCategory; waitingMs: number; distinctJobs: number }[];
   /** Human-written in 013b; the report never generates it. */
   improvement: null;
 }

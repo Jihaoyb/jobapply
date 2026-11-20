@@ -36,7 +36,12 @@ export type Step =
   | { t: 'uncertain' }
   | { t: 'confirm' }
   | { t: 'shortlist' }
-  | { t: 'oreview'; outcome: ReviewOutcome }
+  /**
+   * Outreach review. With `hours`, it is modeled as lane D does it: a review_outreach ticket
+   * (cause unanswered_question, since v1 has no review cause) pauses the confirmed job and
+   * closes with the review outcome. `open: true` leaves that review ticket open (last step).
+   */
+  | { t: 'oreview'; outcome: ReviewOutcome; hours?: number; open?: boolean }
   | { t: 'email' }
   | { t: 'emailUncertain' }
   | { t: 'linkedin' }
@@ -123,6 +128,7 @@ export interface GeneratedLedger {
     employer: string;
     role: string;
     cause: PauseCause;
+    resolveAction?: string;
     openedAt: Date;
     closedAt: Date | null;
     outcome: ReviewOutcome | null;
@@ -294,11 +300,42 @@ export function generateLedger(
         case 'oreview': {
           const ticketId = id('outreach-ticket', job.key);
           out.outreachTicketIds[job.key] = ticketId;
+          let reviewedAt = at;
+          if (step.hours !== undefined || step.open) {
+            const pauseId = id('outreach-pause', job.key);
+            const cause = 'unanswered_question' as const;
+            emit(jobId, 'pause.opened', { pauseId, ticketId, cause }, at);
+            let closedAt: Date | null = null;
+            if (step.hours !== undefined) {
+              cursor += step.hours * HOUR;
+              closedAt = reviewedAt = new Date(cursor);
+              emit(
+                jobId,
+                'pause.closed',
+                { pauseId, ticketId, cause, outcome: step.outcome },
+                closedAt,
+              );
+            } else status = 'paused';
+            out.tickets.push({
+              id: ticketId,
+              jobId,
+              pauseId,
+              question: `Review outreach for ${job.key}`,
+              employer,
+              role: title,
+              cause,
+              resolveAction: 'review_outreach',
+              openedAt: at,
+              closedAt,
+              outcome: closedAt ? step.outcome : null,
+            });
+            if (step.open) break;
+          }
           emit(
             jobId,
             'outreach.reviewed',
             { ticketId, outcome: step.outcome },
-            at,
+            reviewedAt,
           );
           break;
         }
@@ -419,7 +456,7 @@ export async function seedLedger(
           ticket.employer,
           ticket.role,
           ticket.cause,
-          resolveActionFor[ticket.cause],
+          ticket.resolveAction ?? resolveActionFor[ticket.cause],
           ticket.closedAt ? 'resolved' : 'open',
           ticket.openedAt,
           ticket.closedAt,

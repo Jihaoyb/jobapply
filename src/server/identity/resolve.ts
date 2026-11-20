@@ -4,7 +4,7 @@
  * one transaction, then the job continues through the gate.
  */
 import type { Database } from '../db.js';
-import { HttpError } from '../ledger.js';
+import { closeTicketTx, HttpError } from '../ledger.js';
 import type { IdentityResolution } from '../../shared/identity.js';
 import {
   activeEmployer,
@@ -18,7 +18,7 @@ import { classifyJob, recordCareersLink, type GateResult } from './gate.js';
 import { resolvePendingImportRows } from './importer.js';
 import { deriveJobKeys, type IdentityKey } from './normalize.js';
 import { resumeQueuedTx } from './queue.js';
-import { closeTicketTx, lockApplicant } from './tickets.js';
+import { lockApplicant } from './tickets.js';
 
 export async function resolveIdentityTicket(
   db: Database,

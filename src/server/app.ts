@@ -25,6 +25,7 @@ import { registerReportRoutes } from './report/routes.js';
 import { registerOutreachRoutes } from './outreach/routes.js';
 import { registerEligibilityRoutes } from './eligibility/routes.js';
 import { registerIdentityRoutes } from './identity/routes.js';
+import { eligibilityQueueGate } from './screening.js';
 
 export interface AppConfig {
   origin: string;
@@ -259,7 +260,11 @@ export async function createApp(db: Database, config: AppConfig) {
       resolutionInput.parse(req.body),
     );
   });
-  await registerEligibilityRoutes(app, db, { dashboardOwner });
+  await registerEligibilityRoutes(app, db, {
+    dashboardOwner,
+    // Sol retries go through the same pre-eligibility queue gate as the worker path.
+    eligibility: { queueGate: eligibilityQueueGate },
+  });
   app.get('/api/extension/:ownerId/pairing', async (req) => {
     const owner = id.parse((req.params as { ownerId: string }).ownerId);
     return { applicantId: await extensionOwner(req, owner) };

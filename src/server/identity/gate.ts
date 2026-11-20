@@ -3,7 +3,7 @@
  * runs inside the caller's transaction after `lockApplicant`.
  */
 import type { Sql } from '../db.js';
-import { appendEvent } from '../ledger.js';
+import { appendEvent, openTicketTx } from '../ledger.js';
 import {
   defaultCapSettings,
   evaluateCap,
@@ -26,7 +26,6 @@ import {
   type IdentityKey,
   type JobKeys,
 } from './normalize.js';
-import { openTicketTx } from './tickets.js';
 
 /** Job statuses that may still proceed to eligibility, form fill or submit. */
 export const GATEABLE_STATUSES = ['captured', 'eligibility_pending', 'ready'];

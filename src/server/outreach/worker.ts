@@ -4,6 +4,7 @@ import type { LedgerEvent } from '../../shared/contracts.js';
 import { appendEvent, jobFromRow } from '../ledger.js';
 import type { ApolloPerson } from './apollo.js';
 import {
+  foreignOpenTicket,
   logWorker,
   openOutreachTicket,
   pauseForProvider,
@@ -44,15 +45,19 @@ function withJobLock<T>(jobId: string, fn: () => Promise<T>): Promise<T> {
   const previous = running.get(jobId) ?? Promise.resolve();
   const next = previous.catch(() => undefined).then(fn);
   running.set(jobId, next);
-  void next.finally(() => {
+  // Cleanup must not create a second, unobserved rejection: the caller owns `next`'s error.
+  const cleanup = () => {
     if (running.get(jobId) === next) running.delete(jobId);
-  });
+  };
+  next.then(cleanup, cleanup);
   return next;
 }
 
 export type WorkerResult =
   | 'missing'
   | 'skipped_not_confirmed'
+  | 'skipped_deferred'
+  | 'deferred_open_ticket'
   | 'skipped_already_shortlisted'
   | 'paused_employer'
   | 'paused_domain'
@@ -95,6 +100,24 @@ async function runLocked(
     );
     return 'skipped_not_confirmed';
   }
+  // One open ticket per job: another lane's pause wins; outreach waits and a later wake
+  // (sweep, event, retry) runs once it has closed. No Apollo or model call meanwhile.
+  const blocking = await foreignOpenTicket(deps.db, applicantId, jobId);
+  if (blocking) {
+    await logWorker(
+      deps,
+      applicantId,
+      jobId,
+      'deferred_open_ticket',
+      `open ${blocking.cause} ticket ${blocking.id}`,
+    );
+    return 'deferred_open_ticket';
+  }
+  // A generic Defer of an outreach pause ends outreach for this position.
+  if (await outreachDeferred(deps.db, applicantId, jobId)) {
+    await logWorker(deps, applicantId, jobId, 'skipped_deferred');
+    return 'skipped_deferred';
+  }
   const existing = (
     await deps.db.query(
       'SELECT s.id, (SELECT count(*) FROM outreach_candidates c WHERE c.shortlist_id=s.id)::int AS n, (SELECT count(*) FROM outreach_reviews r WHERE r.job_id=s.job_id AND r.applicant_id=s.applicant_id)::int AS reviews FROM outreach_shortlists s WHERE s.applicant_id=$1 AND s.job_id=$2',
@@ -108,15 +131,22 @@ async function runLocked(
     return 'skipped_already_shortlisted';
   }
   if (!job.canonicalEmployerId) {
-    await openOutreachTicket(deps, applicantId, jobId, 'employer', {
-      question:
-        'Contact lookup needs a resolved employer identity. Resolve the employer, then retry outreach.',
-      choices: ['Retry', 'Defer'],
-      employer: job.employer,
-      role: job.title,
-      cause: 'employer_identity',
-      resolveAction: 'resolve_employer',
-    });
+    const ticket = await openOutreachTicket(
+      deps,
+      applicantId,
+      jobId,
+      'employer',
+      {
+        question:
+          'Contact lookup needs a resolved employer identity. Resolve the employer, then retry outreach.',
+        choices: ['Retry', 'Defer'],
+        employer: job.employer,
+        role: job.title,
+        cause: 'employer_identity',
+        resolveAction: 'resolve_employer',
+      },
+    );
+    if (!ticket) return 'deferred_open_ticket';
     await logWorker(
       deps,
       applicantId,
@@ -152,7 +182,7 @@ async function runLocked(
         );
       }
     }
-    await openOutreachTicket(
+    const ticket = await openOutreachTicket(
       deps,
       applicantId,
       jobId,
@@ -169,6 +199,7 @@ async function runLocked(
       },
       proposals,
     );
+    if (!ticket) return 'deferred_open_ticket';
     await logWorker(
       deps,
       applicantId,
@@ -310,6 +341,23 @@ async function runLocked(
   return prepareReview(deps, applicantId, job, shortlistId);
 }
 
+/** True once any outreach pause on the job was closed by a generic Defer. */
+async function outreachDeferred(
+  db: OutreachDeps['db'],
+  applicantId: string,
+  jobId: string,
+) {
+  return (
+    (
+      await db.query(
+        `SELECT 1 FROM outreach_tickets o JOIN tickets t ON t.id=o.ticket_id AND t.applicant_id=o.applicant_id
+         WHERE o.applicant_id=$1 AND o.job_id=$2 AND t.status='resolved' AND t.resolution->>'outcome'='deferred'`,
+        [applicantId, jobId],
+      )
+    ).rows.length > 0
+  );
+}
+
 /** Event entry point: an application.confirmed event only wakes the worker. */
 export async function handleOutreachEvent(
   deps: OutreachDeps,
@@ -327,6 +375,9 @@ export async function sweepOutreach(deps: OutreachDeps) {
        JOIN jobs j ON j.id=e.job_id AND j.applicant_id=e.applicant_id
        WHERE e.name='application.confirmed' AND j.status='confirmed'
          AND NOT EXISTS (SELECT 1 FROM outreach_reviews r WHERE r.job_id=j.id AND r.applicant_id=j.applicant_id)
+         AND NOT EXISTS (SELECT 1 FROM tickets t WHERE t.job_id=j.id AND t.applicant_id=j.applicant_id AND t.status='open')
+         AND NOT EXISTS (SELECT 1 FROM outreach_tickets o JOIN tickets t ON t.id=o.ticket_id
+           WHERE o.job_id=j.id AND o.applicant_id=j.applicant_id AND t.resolution->>'outcome'='deferred')
          AND NOT EXISTS (SELECT 1 FROM outreach_shortlists s WHERE s.job_id=j.id AND s.applicant_id=j.applicant_id
            AND NOT EXISTS (SELECT 1 FROM outreach_candidates c WHERE c.shortlist_id=s.id))
        LIMIT 20`,

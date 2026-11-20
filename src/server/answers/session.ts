@@ -1,7 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { Database, Sql } from '../db.js';
-import { appendEvent, HttpError, openTicket } from '../ledger.js';
+import {
+  closeTicketTx,
+  findOpenTicket,
+  HttpError,
+  isOpenTicketConflict,
+  lockOpenTicketTx,
+  openTicketTx,
+} from '../ledger.js';
 import {
   actionScope,
   formField,
@@ -200,6 +207,12 @@ export interface SessionState {
   pausedFieldId: string | null;
   ticketId: string | null;
   answers: Record<string, FieldAnswer>;
+  /**
+   * Set when the session could not pause because another lane's ticket is open on the job
+   * (one open ticket per job). The session stays `running` at `resumeIndex`; advance it again
+   * after that ticket closes.
+   */
+  blockedByTicketId?: string;
 }
 function stateFromRow(row: any): SessionState {
   return {
@@ -247,14 +260,6 @@ async function loadSession(sql: Sql, applicantId: string, sessionId: string) {
   if (!row) throw new HttpError(404, 'Session not found');
   return row;
 }
-/** Lets ledger helpers that open their own transaction join an outer one. */
-function joined(sql: Sql): Database {
-  return {
-    query: (text, params) => sql.query(text, params),
-    transaction: (fn) => fn(sql),
-    close: async () => {},
-  };
-}
 
 /**
  * Resolves fields from the resume pointer onward. A required field without a reusable
@@ -268,6 +273,9 @@ export async function advanceFieldSession(
 ): Promise<SessionState> {
   let row = await loadSession(db, applicantId, sessionId);
   if (row.status !== 'running') return stateFromRow(row);
+  // One open ticket per job: wait for another lane's pause before any Luna call.
+  const blocking = await findOpenTicket(db, applicantId, row.job_id);
+  if (blocking) return { ...stateFromRow(row), blockedByTicketId: blocking.id };
   const job = (
     await db.query('SELECT * FROM jobs WHERE id=$1 AND applicant_id=$2', [
       row.job_id,
@@ -299,36 +307,50 @@ export async function advanceFieldSession(
         answerId: null,
       };
     } else {
-      row = await db.transaction(async (sql) => {
-        const ticket = await openTicket(joined(sql), applicantId, job.id, {
-          question: field.question,
-          choices: field.choices,
-          employer: job.employer,
-          role: job.title,
-          cause: 'unanswered_question',
-          resolveAction: 'answer_once',
-        });
-        return (
-          await sql.query(
-            `UPDATE answer_sessions SET status='paused', resume_index=$3, resolved=$4, paused_field_id=$5,
+      let paused;
+      try {
+        paused = await db.transaction(async (sql) => {
+          const ticket = await openTicketTx(sql, applicantId, job.id, {
+            question: field.question,
+            choices: field.choices,
+            employer: job.employer,
+            role: job.title,
+            cause: 'unanswered_question',
+            resolveAction: 'answer_once',
+          });
+          return (
+            await sql.query(
+              `UPDATE answer_sessions SET status='paused', resume_index=$3, resolved=$4, paused_field_id=$5,
              ticket_id=$6, pause_detail=$7, updated_at=now() WHERE id=$1 AND applicant_id=$2 AND status='running' RETURNING *`,
-            [
-              sessionId,
-              applicantId,
-              index,
-              JSON.stringify(resolved),
-              field.fieldId,
-              ticket.id,
-              JSON.stringify({
-                reason: result.reason,
-                suggestion: result.suggestion,
-              }),
-            ],
+              [
+                sessionId,
+                applicantId,
+                index,
+                JSON.stringify(resolved),
+                field.fieldId,
+                ticket.id,
+                JSON.stringify({
+                  reason: result.reason,
+                  suggestion: result.suggestion,
+                }),
+              ],
+            )
+          ).rows[0];
+        });
+      } catch (error) {
+        if (!isOpenTicketConflict(error)) throw error;
+        // Another lane paused the job meanwhile: keep progress, stay running at this field.
+        row = (
+          await db.query(
+            'UPDATE answer_sessions SET resume_index=$3, resolved=$4, updated_at=now() WHERE id=$1 AND applicant_id=$2 RETURNING *',
+            [sessionId, applicantId, index, JSON.stringify(resolved)],
           )
         ).rows[0];
-      });
-      if (!row) throw new HttpError(409, 'Session changed while resolving');
-      return stateFromRow(row);
+        const blocker = await findOpenTicket(db, applicantId, job.id);
+        return { ...stateFromRow(row), blockedByTicketId: blocker?.id };
+      }
+      if (!paused) throw new HttpError(409, 'Session changed while resolving');
+      return stateFromRow(paused);
     }
     // Persist progress per field so a worker restart resumes at the same place.
     await db.query(
@@ -367,16 +389,14 @@ export async function resolveAnswerTicket(
 ) {
   const input = ticketAnswerInput.parse(raw);
   return db.transaction(async (sql) => {
-    const ticket = (
-      await sql.query(
-        'SELECT * FROM tickets WHERE id=$1 AND applicant_id=$2 FOR UPDATE',
-        [ticketId, applicantId],
+    const ticket = await lockOpenTicketTx(sql, applicantId, ticketId);
+    // Outreach review tickets share the cause (v1 has no review cause) but not the action.
+    if (
+      ticket.cause !== 'unanswered_question' ||
+      !['answer_once', 'answer_employer', 'answer_global'].includes(
+        ticket.resolve_action,
       )
-    ).rows[0];
-    if (!ticket) throw new HttpError(404, 'Ticket not found');
-    if (ticket.status !== 'open')
-      throw new HttpError(409, 'Ticket already resolved');
-    if (ticket.cause !== 'unanswered_question')
+    )
       throw new HttpError(409, 'Not an unanswered question ticket');
     const session = (
       await sql.query(
@@ -433,31 +453,20 @@ export async function resolveAnswerTicket(
         ],
       );
     }
-    await sql.query(
-      "UPDATE tickets SET status='resolved', closed_at=now(), resolution=$3 WHERE id=$1 AND applicant_id=$2",
-      [
-        ticketId,
-        applicantId,
-        JSON.stringify({
-          outcome,
-          value: JSON.stringify({
-            action: input.action,
-            answerId,
-            fieldId: session?.paused_field_id ?? null,
-          }),
+    await closeTicketTx(
+      sql,
+      applicantId,
+      ticket,
+      {
+        outcome,
+        value: JSON.stringify({
+          action: input.action,
+          answerId,
+          fieldId: session?.paused_field_id ?? null,
         }),
-      ],
+      },
+      value === null ? 'deferred' : ticket.resume_status,
     );
-    await sql.query(
-      'UPDATE jobs SET status=$3 WHERE id=$1 AND applicant_id=$2',
-      [job.id, applicantId, value === null ? 'deferred' : ticket.resume_status],
-    );
-    await appendEvent(sql, applicantId, job.id, 'pause.closed', {
-      pauseId: ticket.pause_id,
-      ticketId,
-      cause: 'unanswered_question',
-      outcome,
-    });
     return {
       resolved: true,
       answerId,

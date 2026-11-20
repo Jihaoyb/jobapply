@@ -18,7 +18,7 @@ export async function loadReportLedger(
     [applicantId],
   );
   const tickets = await sql.query(
-    'SELECT id,job_id,pause_id,question FROM tickets WHERE applicant_id=$1',
+    'SELECT id,job_id,pause_id,question,resolve_action FROM tickets WHERE applicant_id=$1',
     [applicantId],
   );
   return {
@@ -41,6 +41,7 @@ export async function loadReportLedger(
       jobId: row.job_id,
       pauseId: row.pause_id,
       question: row.question,
+      resolveAction: row.resolve_action,
     })),
   };
 }

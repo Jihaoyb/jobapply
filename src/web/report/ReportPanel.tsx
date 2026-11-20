@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import {
   funnelHosts,
+  pauseCategoryLabel,
   sampleOutcomes,
   type Count,
   type FunnelHost,
@@ -137,7 +138,7 @@ function Pauses({ report }: { report: PilotReport }) {
         max={max}
         rows={causes.map((c) => ({
           key: c.cause,
-          label: label(c.cause),
+          label: c.label,
           value: c.waitingMs,
           text:
             c.waitingMs === null
@@ -196,8 +197,8 @@ function BottleneckCard({ report }: { report: PilotReport }) {
       ) : (
         <>
           <p>
-            <strong>{label(b.cause)}</strong>: {hours(b.waitingMs)} waiting
-            across {b.distinctJobs} jobs ({b.episodes} pauses).
+            <strong>{pauseCategoryLabel(b.cause)}</strong>: {hours(b.waitingMs)}{' '}
+            waiting across {b.distinctJobs} jobs ({b.episodes} pauses).
           </p>
           <p className="muted">{b.rule}</p>
           <ul className="records">

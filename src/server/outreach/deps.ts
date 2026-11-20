@@ -1,8 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import type { Database, Sql } from '../db.js';
 import { configuredModelCaller, type ModelRequest } from '../model.js';
-import { appendEvent, HttpError, openTicket } from '../ledger.js';
-import { reviewOutcomes, type TicketInput } from '../../shared/contracts.js';
+import {
+  closeTicketTx,
+  isOpenTicketConflict,
+  lockOpenTicketTx,
+  openTicketTx,
+} from '../ledger.js';
+import {
+  reviewOutcomes,
+  type Ticket,
+  type TicketInput,
+} from '../../shared/contracts.js';
 import { httpApollo, type ApolloClient } from './apollo.js';
 import { gmailSmtp, type SmtpSender } from './smtp.js';
 
@@ -39,7 +48,12 @@ export function configuredOutreachDeps(db: Database): OutreachDeps {
   };
 }
 
-/** Opens a ticket through the shared primitive and tags it as an outreach ticket. */
+/**
+ * Opens a ticket through the shared primitive and tags it as an outreach ticket in the same
+ * transaction; `alsoTx` lets the caller commit its own row (e.g. the review) with the pause.
+ * Returns null when the job already has another lane's open ticket: outreach defers (logged
+ * `deferred_open_ticket`) and a later wake retries once that ticket has closed.
+ */
 export async function openOutreachTicket(
   deps: OutreachDeps,
   applicantId: string,
@@ -47,13 +61,43 @@ export async function openOutreachTicket(
   kind: OutreachKind,
   input: TicketInput,
   proposedDomains: string[] = [],
+  alsoTx?: (sql: Sql, ticket: Ticket) => Promise<void>,
+): Promise<Ticket | null> {
+  try {
+    return await deps.db.transaction(async (sql) => {
+      const ticket = await openTicketTx(sql, applicantId, jobId, input);
+      await sql.query(
+        'INSERT INTO outreach_tickets (ticket_id,applicant_id,job_id,kind,proposed_domains) VALUES ($1,$2,$3,$4,$5)',
+        [ticket.id, applicantId, jobId, kind, JSON.stringify(proposedDomains)],
+      );
+      if (alsoTx) await alsoTx(sql, ticket);
+      return ticket;
+    });
+  } catch (error) {
+    if (!isOpenTicketConflict(error)) throw error;
+    await logWorker(
+      deps,
+      applicantId,
+      jobId,
+      'deferred_open_ticket',
+      `${kind} ticket not opened: job has an open ticket`,
+    );
+    return null;
+  }
+}
+/** Another lane's open ticket on the job, if any (outreach waits for it to close). */
+export async function foreignOpenTicket(
+  sql: Sql,
+  applicantId: string,
+  jobId: string,
 ) {
-  const ticket = await openTicket(deps.db, applicantId, jobId, input);
-  await deps.db.query(
-    'INSERT INTO outreach_tickets (ticket_id,applicant_id,job_id,kind,proposed_domains) VALUES ($1,$2,$3,$4,$5)',
-    [ticket.id, applicantId, jobId, kind, JSON.stringify(proposedDomains)],
-  );
-  return ticket;
+  return (
+    await sql.query(
+      `SELECT t.id, t.cause FROM tickets t WHERE t.applicant_id=$1 AND t.job_id=$2 AND t.status='open'
+       AND NOT EXISTS (SELECT 1 FROM outreach_tickets o WHERE o.ticket_id=t.id)`,
+      [applicantId, jobId],
+    )
+  ).rows[0] as { id: string; cause: string } | undefined;
 }
 export async function openOutreachTicketFor(
   sql: Sql,
@@ -80,29 +124,14 @@ export async function closeOutreachTicket(
   outcome: (typeof reviewOutcomes)[number],
   value: string,
 ) {
-  const row = (
-    await sql.query(
-      'SELECT * FROM tickets WHERE id=$1 AND applicant_id=$2 FOR UPDATE',
-      [ticketId, applicantId],
-    )
-  ).rows[0];
-  if (!row) throw new HttpError(404, 'Ticket not found');
-  if (row.status !== 'open')
-    throw new HttpError(409, 'Ticket already resolved');
-  await sql.query(
-    "UPDATE tickets SET status='resolved',closed_at=now(),resolution=$3 WHERE id=$1 AND applicant_id=$2",
-    [ticketId, applicantId, JSON.stringify({ outcome, value })],
+  const row = await lockOpenTicketTx(sql, applicantId, ticketId);
+  await closeTicketTx(
+    sql,
+    applicantId,
+    row,
+    { outcome, value },
+    row.resume_status,
   );
-  await sql.query(
-    "UPDATE jobs SET status=$3 WHERE id=$1 AND applicant_id=$2 AND status='paused'",
-    [row.job_id, applicantId, row.resume_status],
-  );
-  await appendEvent(sql, applicantId, row.job_id, 'pause.closed', {
-    pauseId: row.pause_id,
-    ticketId,
-    cause: row.cause,
-    outcome,
-  });
   return row;
 }
 export async function logWorker(
@@ -126,23 +155,23 @@ export async function pauseForProvider(
   job: { id: string; employer: string; title: string },
   error: unknown,
   what: string,
-): Promise<'paused_provider'> {
+): Promise<'paused_provider' | 'deferred_open_ticket'> {
   const message = error instanceof Error ? error.message : 'Provider failed';
-  try {
-    await openOutreachTicket(deps, applicantId, job.id, 'provider', {
+  const ticket = await openOutreachTicket(
+    deps,
+    applicantId,
+    job.id,
+    'provider',
+    {
       question: `${what} paused: ${message}. Fix the provider setup or wait for limits to reset, then retry.`,
       choices: ['Retry', 'Defer'],
       employer: job.employer,
       role: job.title,
       cause: 'provider_limit',
       resolveAction: 'retry_provider',
-    });
-  } catch (ticketError) {
-    deps.log('provider pause not opened', {
-      jobId: job.id,
-      reason: (ticketError as Error).message,
-    });
-  }
+    },
+  );
+  if (!ticket) return 'deferred_open_ticket';
   await logWorker(
     deps,
     applicantId,

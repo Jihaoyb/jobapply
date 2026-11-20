@@ -133,9 +133,13 @@ test('posting employer link proposes a domain that is confirmed once; lookup pau
   const f = await outreachFixture();
   try {
     const employerId = await f.employer('Northwind Example', null);
+    // ATS application URL (no employer domain key for lane A); the employer's own site is
+    // linked from the posting text.
     const first = await f.job({
       employerId,
-      applicationUrl: 'https://careers.northwind.example/jobs/42',
+      applicationUrl: 'https://boards.greenhouse.io/northwind/jobs/42',
+      postingText:
+        'Build reliable services. Learn more at https://careers.northwind.example/about',
     });
     assert.equal(
       await handleOutreachEvent(f.deps, first.event),

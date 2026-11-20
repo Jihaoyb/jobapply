@@ -25,7 +25,8 @@ import {
   requisitionNamespace,
   urlKey,
 } from './normalize.js';
-import { lockApplicant, openTicketTx } from './tickets.js';
+import { openTicketTx } from '../ledger.js';
+import { lockApplicant } from './tickets.js';
 
 export interface ImportRowInput {
   line: number;

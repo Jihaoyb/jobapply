@@ -1,13 +1,11 @@
-import {
-  pauseCauses,
-  type EventName,
-  type EventPayload,
-} from '../../shared/contracts.js';
+import { type EventName, type EventPayload } from '../../shared/contracts.js';
 import {
   REPORT_WINDOW_DAYS,
   funnelHosts,
   funnelStages,
   pilotHostOf,
+  pauseCategories,
+  pauseCategoryLabel,
   pilotHosts,
   type Bottleneck,
   type CorrectionRow,
@@ -16,7 +14,7 @@ import {
   type FunnelHost,
   type FunnelStage,
   type FunnelStageKey,
-  type PauseCause,
+  type PauseCategory,
   type PauseCauseRow,
   type PauseEpisode,
   type PilotHost,
@@ -46,6 +44,8 @@ export interface ReportTicket {
   jobId: string;
   pauseId: string;
   question: string;
+  /** Distinguishes outreach review tickets, which reuse cause unanswered_question. */
+  resolveAction?: string;
 }
 export interface ReportLedger {
   events: ReportEvent[];
@@ -325,6 +325,12 @@ export function computeReport(
   ) as PilotReport['funnel']['hostCoverage'];
 
   // ---- Pauses: paired by owner, job and pauseId; open pauses accrue to the cutoff ----
+  const ticketById = new Map(ledger.tickets.map((t) => [t.id, t]));
+  const categoryOf = (ticketId: string, cause: PauseEpisode['cause']) =>
+    cause === 'unanswered_question' &&
+    ticketById.get(ticketId)?.resolveAction === 'review_outreach'
+      ? ('outreach_review' as const)
+      : cause;
   const episodes = new Map<string, PauseEpisode>();
   for (const event of inWindow) {
     if (event.name === 'pause.opened') {
@@ -334,6 +340,7 @@ export function computeReport(
         ticketId: p.ticketId,
         jobId: event.jobId!,
         cause: p.cause,
+        category: categoryOf(p.ticketId, p.cause),
         openedAt: iso(time(event)),
         closedAt: null,
         open: true,
@@ -357,18 +364,21 @@ export function computeReport(
     episode.waitingMs =
       (episode.closedAt ? Date.parse(episode.closedAt) : cutoff) -
       Date.parse(episode.openedAt);
-  const causeCovered = (cause: PauseCause) =>
+  const causeCovered = (cause: PauseCategory) =>
     cause === 'uncertain_email'
       ? coverage.email.live
       : cause === 'uncertain_submission'
         ? coverage.hostsLive.length > 0
-        : true;
-  const causes: PauseCauseRow[] = pauseCauses.map((cause) => {
-    const list = episodeList.filter((e) => e.cause === cause);
+        : cause === 'outreach_review'
+          ? coverage.outreach.live
+          : true;
+  const causes: PauseCauseRow[] = pauseCategories.map((cause) => {
+    const list = episodeList.filter((e) => e.category === cause);
     const absent = !causeCovered(cause) && !list.length;
     const value = (n: number) => (absent ? null : n);
     return {
       cause,
+      label: pauseCategoryLabel(cause),
       episodes: value(list.length),
       distinctJobs: value(new Set(list.map((e) => e.jobId)).size),
       openEpisodes: value(list.filter((e) => e.open).length),
@@ -495,7 +505,7 @@ export function computeReport(
       ranking,
       improvement: null,
       records: episodeList
-        .filter((e) => e.cause === top.cause)
+        .filter((e) => e.category === top.cause)
         .sort(
           (a, b) =>
             b.waitingMs - a.waitingMs || a.pauseId.localeCompare(b.pauseId),

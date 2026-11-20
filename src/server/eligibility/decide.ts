@@ -3,8 +3,10 @@ import { z } from 'zod';
 import type { Database, Sql } from '../db.js';
 import {
   appendEvent,
+  closeTicketTx,
   HttpError,
-  openTicket,
+  lockOpenTicketTx,
+  openTicketTx,
   resolutionInput,
 } from '../ledger.js';
 import { configuredModelCaller, type ModelRequest } from '../model.js';
@@ -39,6 +41,16 @@ export interface EligibilityDeps {
   solModel?: string;
   /** Only the replay harness may bypass the gate (it is how a change is validated). */
   skipReplayGate?: boolean;
+  /**
+   * Pre-eligibility queue gate (duplicate, cap, hold), injected by the integration layer
+   * (src/server/screening.ts) so this module never imports lane A. When it refuses, no rule
+   * or Sol runs and the call fails with 409; the gate has already recorded why.
+   */
+  queueGate?: (
+    db: Database,
+    applicantId: string,
+    jobId: string,
+  ) => Promise<boolean>;
 }
 export interface EligibilityResult {
   decisionId: string;
@@ -201,6 +213,11 @@ function excerpt(value: string, max = 600) {
   return flat.length > max ? flat.slice(0, max - 1) + '…' : flat;
 }
 
+/**
+ * Opens the review ticket and records the `review` decision in one transaction. If another
+ * lane already holds the job's one open ticket, this throws `OpenTicketConflict` and records
+ * nothing: the job is paused by that ticket and is screened again once it is back in the queue.
+ */
 async function review(
   db: Database,
   applicantId: string,
@@ -210,23 +227,37 @@ async function review(
     question: string;
   },
 ): Promise<EligibilityResult> {
-  const ticket = await openTicket(db, applicantId, job.id, {
-    question: input.question,
-    choices: ['passed', 'excluded'],
-    employer: job.employer,
-    role: job.title,
-    cause: input.cause,
-    resolveAction:
-      input.cause === 'provider_limit'
-        ? 'retry_provider'
-        : 'decide_eligibility',
-  });
   const { cause: _cause, question: _question, ...rest } = input;
-  return finalize(db, applicantId, job.id, {
-    ...rest,
-    decision: 'review',
-    ticketId: ticket.id,
+  const { decisionId, ticketId } = await db.transaction(async (sql) => {
+    const ticket = await openTicketTx(sql, applicantId, job.id, {
+      question: input.question,
+      choices: ['passed', 'excluded'],
+      employer: job.employer,
+      role: job.title,
+      cause: input.cause,
+      resolveAction:
+        input.cause === 'provider_limit'
+          ? 'retry_provider'
+          : 'decide_eligibility',
+    });
+    const decisionId = await record(sql, applicantId, job.id, {
+      ...rest,
+      decision: 'review',
+      ticketId: ticket.id,
+    });
+    return { decisionId, ticketId: ticket.id };
   });
+  return {
+    decisionId,
+    decision: 'review',
+    provenance: rest.provenance,
+    route: rest.route,
+    evidence: rest.evidence?.text ?? null,
+    ruleId: rest.ruleId,
+    reason: rest.reason,
+    ticketId,
+    modelCallId: rest.modelCallId,
+  };
 }
 
 /**
@@ -254,6 +285,11 @@ export async function decideEligibility(
   if (!job) throw new HttpError(404, 'Job not found');
   if (!RUNNABLE.has(job.status))
     throw new HttpError(409, `Eligibility cannot run for a ${job.status} job`);
+  if (deps.queueGate && !(await deps.queueGate(db, applicantId, jobId)))
+    throw new HttpError(
+      409,
+      'Job stopped before eligibility (duplicate, capped, held or unresolved employer)',
+    );
 
   const base = {
     source,
@@ -399,15 +435,7 @@ async function eligibilityTicket(
   applicantId: string,
   ticketId: string,
 ) {
-  const ticket = (
-    await sql.query(
-      'SELECT * FROM tickets WHERE id=$1 AND applicant_id=$2 FOR UPDATE',
-      [ticketId, applicantId],
-    )
-  ).rows[0];
-  if (!ticket) throw new HttpError(404, 'Ticket not found');
-  if (ticket.status !== 'open')
-    throw new HttpError(409, 'Ticket already resolved');
+  const ticket = await lockOpenTicketTx(sql, applicantId, ticketId);
   const origin = (
     await sql.query(
       "SELECT * FROM eligibility_decisions WHERE ticket_id=$1 AND applicant_id=$2 AND decision='review' ORDER BY created_at DESC LIMIT 1",
@@ -436,26 +464,13 @@ export async function resolveEligibilityTicket(
       applicantId,
       ticketId,
     );
-    await sql.query(
-      "UPDATE tickets SET status='resolved',closed_at=now(),resolution=$3 WHERE id=$1 AND applicant_id=$2",
-      [ticketId, applicantId, JSON.stringify(resolution)],
-    );
     const status =
       input.decision === 'excluded'
         ? 'eligibility_excluded'
         : ['captured', 'eligibility_pending'].includes(ticket.resume_status)
           ? 'ready'
           : ticket.resume_status;
-    await sql.query(
-      'UPDATE jobs SET status=$3 WHERE id=$1 AND applicant_id=$2',
-      [ticket.job_id, applicantId, status],
-    );
-    await appendEvent(sql, applicantId, ticket.job_id, 'pause.closed', {
-      pauseId: ticket.pause_id,
-      ticketId,
-      cause: ticket.cause,
-      outcome: resolution.outcome,
-    });
+    await closeTicketTx(sql, applicantId, ticket, resolution, status);
     const evidence: Span | null =
       origin.evidence === null
         ? null
@@ -507,24 +522,13 @@ export async function retryEligibilityTicket(
     );
     if (ticket.cause !== 'provider_limit')
       throw new HttpError(409, 'Only a Sol outage ticket can be retried');
-    await sql.query(
-      "UPDATE tickets SET status='resolved',closed_at=now(),resolution=$3 WHERE id=$1 AND applicant_id=$2",
-      [
-        ticketId,
-        applicantId,
-        JSON.stringify({ outcome: 'no_change', value: 'retry_provider' }),
-      ],
+    await closeTicketTx(
+      sql,
+      applicantId,
+      ticket,
+      { outcome: 'no_change', value: 'retry_provider' },
+      ticket.resume_status,
     );
-    await sql.query(
-      'UPDATE jobs SET status=$3 WHERE id=$1 AND applicant_id=$2',
-      [ticket.job_id, applicantId, ticket.resume_status],
-    );
-    await appendEvent(sql, applicantId, ticket.job_id, 'pause.closed', {
-      pauseId: ticket.pause_id,
-      ticketId,
-      cause: ticket.cause,
-      outcome: 'no_change',
-    });
     return origin;
   });
   return decideEligibility(

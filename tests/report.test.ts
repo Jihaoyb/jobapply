@@ -61,8 +61,8 @@ function reconcile(
       report.funnel.hostCoverage[host].selectedJobs,
       expected.funnel.selected.byHost[host],
     );
-  // Pauses: all nine causes are present; listed ones reconcile exactly.
-  assert.equal(report.pauses.causes.length, 9);
+  // Pauses: all nine causes plus the outreach-review row; listed ones reconcile exactly.
+  assert.equal(report.pauses.causes.length, 10);
   for (const [cause, want] of Object.entries(expected.pauses)) {
     const row = report.pauses.causes.find((r) => r.cause === cause)!;
     assert.deepEqual(
@@ -377,6 +377,100 @@ test('report API is session-scoped, owner-isolated and validates the clock overr
     );
     assert.equal(bobReport.funnel.stages[0]!.total, 7);
     assert.deepEqual(bobReport.coverage.hostsAbsent, ['lever', 'ashby']);
+  } finally {
+    await f.close();
+  }
+});
+
+test('outreach review pauses count as "outreach review", not unanswered questions; confirmations come from events', async () => {
+  const passed = { t: 'elig', decision: 'passed' } as const;
+  const confirmedSteps = [
+    passed,
+    { t: 'submit' },
+    { t: 'confirm' },
+    { t: 'shortlist' },
+  ] as const;
+  const scenario: Scenario = {
+    name: 'outreach-review-pauses',
+    now: at(7, 5),
+    adapters: [{ host: 'greenhouse', at: at(0, 0, -30) }],
+    jobs: [
+      // A real unanswered form question: 2 h.
+      {
+        key: 'q1',
+        host: 'greenhouse',
+        at: at(0),
+        steps: [
+          passed,
+          { t: 'pause', cause: 'unanswered_question', hours: 2 },
+          { t: 'submit' },
+          { t: 'confirm' },
+        ],
+      },
+      // Lane D review ticket (cause unanswered_question, resolve_action review_outreach): 30 h.
+      {
+        key: 'o1',
+        host: 'greenhouse',
+        at: at(1),
+        steps: [
+          ...confirmedSteps,
+          { t: 'oreview', outcome: 'approved', hours: 30 },
+        ],
+      },
+      // Review still open: the job's current status is `paused`, yet it was confirmed.
+      {
+        key: 'o2',
+        host: 'greenhouse',
+        at: at(2),
+        steps: [
+          ...confirmedSteps,
+          { t: 'oreview', outcome: 'approved', open: true },
+        ],
+      },
+    ],
+    samples: [],
+  };
+  const { f, ledger } = await seeded(scenario);
+  try {
+    const status = (
+      await f.db.query('SELECT status FROM jobs WHERE id=$1', [
+        ledger.jobIds.o2,
+      ])
+    ).rows[0].status;
+    assert.equal(status, 'paused');
+    const report = ready(
+      computeReport(await loadReportLedger(f.db, f.alice), {
+        now: scenario.now,
+      }),
+    );
+    const row = (cause: string) =>
+      report.pauses.causes.find((c) => c.cause === cause)!;
+    assert.deepEqual(
+      {
+        episodes: row('unanswered_question').episodes,
+        waitingMs: row('unanswered_question').waitingMs,
+      },
+      { episodes: 1, waitingMs: 2 * 3_600_000 },
+    );
+    const outreach = row('outreach_review');
+    assert.equal(outreach.label, 'outreach review');
+    assert.equal(outreach.episodes, 2);
+    assert.equal(outreach.distinctJobs, 2);
+    assert.equal(outreach.openEpisodes, 1);
+    // o2's review opened at 2d00:50 (fifth 10-minute step) and accrues to the 7d00:00 cutoff.
+    assert.equal(
+      outreach.waitingMs,
+      30 * 3_600_000 + (5 * 24 * 60 - 50) * 60_000,
+    );
+    assert.equal(
+      report.pauses.episodes.find((e) => e.jobId === ledger.jobIds.o1)!.cause,
+      'unanswered_question',
+    );
+    assert.equal(report.bottleneck!.cause, 'outreach_review');
+    // Funnel counts confirmations from application.confirmed, not current job status.
+    const confirmed = report.funnel.stages.find((s) => s.key === 'confirmed')!;
+    assert.equal(confirmed.total, 3);
+    assert.ok(confirmed.jobIds.includes(ledger.jobIds.o2!));
   } finally {
     await f.close();
   }
