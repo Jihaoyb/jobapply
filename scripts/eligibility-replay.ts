@@ -1,0 +1,145 @@
+// Eligibility replay (issue 005). Runs the labeled postings through the same
+// decideEligibility entry point the worker uses, in an in-memory database.
+//
+//   npm run eligibility:replay -- --fake                   deterministic fake Sol
+//   npm run eligibility:replay                             live Sol (needs OPENAI_API_KEY)
+//   ... --write-baseline                                   record the run as the gate baseline
+//   ... --input-usd-per-mtok 1.25 --output-usd-per-mtok 10 --projected-postings 300
+//
+// Rates may also come from OPENAI_SOL_INPUT_USD_PER_MTOK / OPENAI_SOL_OUTPUT_USD_PER_MTOK.
+import { randomUUID } from 'node:crypto';
+import { readFile, writeFile } from 'node:fs/promises';
+import { parseArgs } from 'node:util';
+import { format, resolveConfig } from 'prettier';
+import { hashPassword } from '../src/server/auth.js';
+import { migrate } from '../src/server/db.js';
+import { eligibilityBaseline } from '../src/server/eligibility/baseline.js';
+import {
+  baselineSection,
+  runReplay,
+} from '../src/server/eligibility/replay.js';
+import type {
+  EligibilityBaseline,
+  ReplayFixture,
+} from '../src/server/eligibility/replay-types.js';
+import { configuredSolModel } from '../src/server/eligibility/sol.js';
+import { modelCaller } from '../src/server/model.js';
+import { localDatabase } from './local-db.js';
+
+const { values } = parseArgs({
+  options: {
+    fake: { type: 'boolean', default: false },
+    'write-baseline': { type: 'boolean', default: false },
+    fixtures: {
+      type: 'string',
+      default: 'tests/fixtures/eligibility/postings.json',
+    },
+    'input-usd-per-mtok': { type: 'string' },
+    'output-usd-per-mtok': { type: 'string' },
+    'projected-postings': { type: 'string' },
+    json: { type: 'boolean', default: false },
+  },
+});
+const mode = values.fake ? 'fake' : 'live';
+const apiKey = process.env.OPENAI_API_KEY;
+if (mode === 'live' && !apiKey) {
+  console.error(
+    'Live replay needs OPENAI_API_KEY (server env or .env). Use --fake for the deterministic replay.',
+  );
+  process.exit(1);
+}
+const rawFixtures = await readFile(values.fixtures, 'utf8');
+const fixtures = (JSON.parse(rawFixtures) as { fixtures: ReplayFixture[] })
+  .fixtures;
+const inputRate =
+  values['input-usd-per-mtok'] ?? process.env.OPENAI_SOL_INPUT_USD_PER_MTOK;
+const outputRate =
+  values['output-usd-per-mtok'] ?? process.env.OPENAI_SOL_OUTPUT_USD_PER_MTOK;
+const rates =
+  inputRate && outputRate
+    ? {
+        inputUsdPerMTok: Number(inputRate),
+        outputUsdPerMTok: Number(outputRate),
+      }
+    : undefined;
+
+const db = localDatabase();
+await migrate(db);
+const applicantId = randomUUID();
+await db.query(
+  'INSERT INTO applicants (id,email,password_hash) VALUES ($1,$2,$3)',
+  [applicantId, 'replay@example.com', hashPassword(randomUUID())],
+);
+const solModel = configuredSolModel();
+const report = await runReplay({
+  db,
+  applicantId,
+  fixtures,
+  mode,
+  solModel,
+  callModel:
+    mode === 'live'
+      ? modelCaller(db, {
+          apiKey,
+          solModel,
+          lunaModel: process.env.OPENAI_LUNA_MODEL ?? 'gpt-6-luna',
+        })
+      : undefined,
+  rates,
+  projectedPostings: values['projected-postings']
+    ? Number(values['projected-postings'])
+    : undefined,
+});
+await db.close();
+
+if (values.json) console.log(JSON.stringify(report, null, 2));
+const m = report.metrics;
+console.log(`Eligibility replay (${mode}, model ${solModel})`);
+console.log(
+  `  fixtures ${m.total}; expected passed/excluded/review ${m.expectedByDecision.passed}/${m.expectedByDecision.excluded}/${m.expectedByDecision.review}; actual ${m.actualByDecision.passed}/${m.actualByDecision.excluded}/${m.actualByDecision.review}`,
+);
+console.log(
+  `  false inclusions ${m.falseInclusions.length} ${JSON.stringify(m.falseInclusions)}`,
+);
+console.log(
+  `  false exclusions ${m.falseExclusions.length} ${JSON.stringify(m.falseExclusions)}`,
+);
+console.log(
+  `  unexpected reviews ${m.unexpectedReviews.length} ${JSON.stringify(m.unexpectedReviews)}`,
+);
+console.log(
+  `  quote mismatches ${m.quoteMismatches.length}; route mismatches ${m.routeMismatches.length}`,
+);
+console.log(
+  `  Sol calls ${m.solCalls} (${(m.solCallShare * 100).toFixed(1)}% of fixtures, ${m.failedSolCalls} failed); tokens in ${m.inputTokens} / out ${m.outputTokens}`,
+);
+if (report.cost)
+  console.log(
+    `  cost: measured $${report.cost.measuredUsd}; all-Sol budget $${report.cost.allSolPerPostingUsd}/posting, $${report.cost.allSolProjectedUsd} for ${report.cost.allSolProjectedPostings} postings`,
+  );
+else
+  console.log(
+    '  cost: pass --input-usd-per-mtok and --output-usd-per-mtok (or OPENAI_SOL_*_USD_PER_MTOK) to estimate',
+  );
+
+if (values['write-baseline']) {
+  const next: EligibilityBaseline = {
+    ...eligibilityBaseline,
+    [mode]: baselineSection(report, rawFixtures),
+  };
+  const path = 'src/server/eligibility/baseline.ts';
+  const source = `// Generated by \`npm run eligibility:replay -- --write-baseline\`. Do not hand-edit.
+import type { EligibilityBaseline } from './replay-types.js';
+export type { EligibilityBaseline } from './replay-types.js';
+
+export const eligibilityBaseline: EligibilityBaseline = ${JSON.stringify(next, null, 2)};
+`;
+  await writeFile(
+    path,
+    await format(source, {
+      ...(await resolveConfig(path)),
+      parser: 'typescript',
+    }),
+  );
+  console.log(`  wrote ${mode} baseline to ${path}`);
+}

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Job, Ticket } from '../shared/contracts.js';
 import { api } from './api.js';
+import { EligibilityPanel } from './eligibility/EligibilityPanel.js';
 import './style.css';
 
 function Login({ onLogin }: { onLogin: () => void }) {
@@ -362,6 +363,7 @@ function Dashboard() {
         <SavedJobs jobs={jobs} />
         <Pairings />
       </div>
+      <EligibilityPanel onChanged={refresh} />
       <PostingForm onSaved={refresh} />
       <button
         className="text-button refresh"

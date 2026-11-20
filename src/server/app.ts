@@ -20,6 +20,7 @@ import {
   resolveTicket,
   resolutionInput,
 } from './ledger.js';
+import { registerEligibilityRoutes } from './eligibility/routes.js';
 
 export interface AppConfig {
   origin: string;
@@ -254,6 +255,7 @@ export async function createApp(db: Database, config: AppConfig) {
       resolutionInput.parse(req.body),
     );
   });
+  await registerEligibilityRoutes(app, db, { dashboardOwner });
   app.get('/api/extension/:ownerId/pairing', async (req) => {
     const owner = id.parse((req.params as { ownerId: string }).ownerId);
     return { applicantId: await extensionOwner(req, owner) };
