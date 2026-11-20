@@ -1,0 +1,769 @@
+{
+  "note": "Synthetic postings with synthetic employers. Every label needs human review; see docs/p2/eligibility.md.",
+  "fixtures": [
+    {
+      "id": "rule-citizen-must-be",
+      "tags": ["citizenship"],
+      "source": "posting",
+      "text": "Northwind Example Labs is hiring a Backend Engineer to build internal tools. You will work with product and design partners. Must be a U.S. citizen. Hybrid in Denver, CO.",
+      "expected": {
+        "route": "exclusion_rule",
+        "decision": "excluded",
+        "quote": "Must be a U.S. citizen."
+      }
+    },
+    {
+      "id": "rule-citizenship-required",
+      "tags": ["citizenship"],
+      "source": "posting",
+      "text": "Contoso Example Systems is hiring a Software Engineer to build internal tools. You will work with product and design partners.\nU.S. citizenship is required for this position.\nBenefits include medical and dental.",
+      "expected": {
+        "route": "exclusion_rule",
+        "decision": "excluded",
+        "quote": "U.S. citizenship is required"
+      }
+    },
+    {
+      "id": "rule-citizens-pr-only",
+      "tags": ["citizenship"],
+      "source": "posting",
+      "text": "Fabrikam Example Air is hiring a Data Engineer to build internal tools. You will work with product and design partners. This role is open only to US citizens and permanent residents. Relocation assistance provided.",
+      "expected": {
+        "route": "exclusion_rule",
+        "decision": "excluded",
+        "quote": "open only to US citizens"
+      }
+    },
+    {
+      "id": "rule-citizen-or-lpr",
+      "tags": ["citizenship"],
+      "source": "posting",
+      "text": "About the role: maintain flight software at Tailspin Example Toys. Applicants must be U.S. citizens or lawful permanent residents (green card holders). We value curiosity.",
+      "expected": {
+        "route": "exclusion_rule",
+        "decision": "excluded",
+        "quote": "Applicants must be U.S. citizens or lawful permanent residents"
+      }
+    },
+    {
+      "id": "rule-only-citizens-gc",
+      "tags": ["citizenship"],
+      "source": "posting",
+      "text": "Woodgrove Example Bank is hiring a Platform Engineer to build internal tools. You will work with product and design partners. Only U.S. citizens or green card holders will be considered. Full-time, on-site.",
+      "expected": {
+        "route": "exclusion_rule",
+        "decision": "excluded",
+        "quote": "Only U.S. citizens or green card holders will be considered"
+      }
+    },
+    {
+      "id": "rule-green-card-hold",
+      "tags": ["citizenship"],
+      "source": "posting",
+      "text": "Litware Example Inc. seeks a QA engineer.\n• Must hold a green card or U.S. citizenship.\n• 3+ years of test automation.",
+      "expected": {
+        "route": "exclusion_rule",
+        "decision": "excluded",
+        "quote": "Must hold a green card"
+      }
+    },
+    {
+      "id": "rule-itar-us-person",
+      "tags": ["itar"],
+      "source": "posting",
+      "text": "Proseware Example Defense builds satellite ground systems. Due to ITAR requirements, candidates must be U.S. persons as defined by 22 CFR 120.62. Experience with C++ is expected.",
+      "expected": {
+        "route": "exclusion_rule",
+        "decision": "excluded",
+        "quote": "candidates must be U.S. persons"
+      }
+    },
+    {
+      "id": "rule-itar-eligibility",
+      "tags": ["itar"],
+      "source": "posting",
+      "text": "Adatum Example Aerospace is hiring a Embedded Engineer to build internal tools. You will work with product and design partners. This position requires ITAR eligibility. Travel up to 10%.",
+      "expected": {
+        "route": "exclusion_rule",
+        "decision": "excluded",
+        "quote": "This position requires ITAR eligibility."
+      }
+    },
+    {
+      "id": "rule-clearance-active-secret",
+      "tags": ["clearance"],
+      "source": "posting",
+      "text": "Role: Cloud Engineer at Lucerne Example Federal.\nActive Secret clearance required.\nLocation: Arlington, VA.",
+      "expected": {
+        "route": "exclusion_rule",
+        "decision": "excluded",
+        "quote": "Active Secret clearance required."
+      }
+    },
+    {
+      "id": "rule-clearance-ts-sci",
+      "tags": ["clearance"],
+      "source": "posting",
+      "text": "Trey Example Research is hiring a Security Analyst to build internal tools. You will work with product and design partners. Candidates must hold an active TS/SCI clearance with polygraph. Shift work is not required.",
+      "expected": {
+        "route": "exclusion_rule",
+        "decision": "excluded",
+        "quote": "must hold an active TS/SCI clearance"
+      }
+    },
+    {
+      "id": "rule-clearance-obtain",
+      "tags": ["clearance"],
+      "source": "posting",
+      "text": "Wide World Example Importers is expanding its government practice. Must be able to obtain and maintain a U.S. government security clearance. Strong SQL skills required.",
+      "expected": {
+        "route": "exclusion_rule",
+        "decision": "excluded",
+        "quote": "Must be able to obtain and maintain a U.S. government security clearance."
+      }
+    },
+    {
+      "id": "rule-clearance-top-secret",
+      "tags": ["clearance"],
+      "source": "posting",
+      "text": "Coho Example Vineyard Defense is hiring a Site Reliability Engineer to build internal tools. You will work with product and design partners. Top Secret clearance is required to start. Hybrid schedule available.",
+      "expected": {
+        "route": "exclusion_rule",
+        "decision": "excluded",
+        "quote": "Top Secret clearance is required to start."
+      }
+    },
+    {
+      "id": "rule-sponsor-will-not",
+      "tags": ["sponsorship"],
+      "source": "posting",
+      "text": "Alpine Example Ski House is hiring a Full Stack Engineer to build internal tools. You will work with product and design partners. We will not sponsor employment visas now or in the future. Salary range $120k-$150k.",
+      "expected": {
+        "route": "exclusion_rule",
+        "decision": "excluded",
+        "quote": "We will not sponsor employment visas now or in the future."
+      }
+    },
+    {
+      "id": "rule-sponsor-unable",
+      "tags": ["sponsorship"],
+      "source": "posting",
+      "text": "Blue Yonder Example Airlines is hiring a mobile engineer. The company is unable to sponsor H-1B visas for this role. You will ship features weekly.",
+      "expected": {
+        "route": "exclusion_rule",
+        "decision": "excluded",
+        "quote": "unable to sponsor H-1B visas"
+      }
+    },
+    {
+      "id": "rule-sponsor-not-eligible",
+      "tags": ["sponsorship"],
+      "source": "posting",
+      "text": "City Power Example Light is hiring a ML Engineer to build internal tools. You will work with product and design partners. This position is not eligible for visa sponsorship. Remote within the United States.",
+      "expected": {
+        "route": "exclusion_rule",
+        "decision": "excluded",
+        "quote": "This position is not eligible for visa sponsorship."
+      }
+    },
+    {
+      "id": "rule-sponsor-without-future",
+      "tags": ["sponsorship"],
+      "source": "posting",
+      "text": "Graphic Example Design Institute is hiring a Frontend Engineer to build internal tools. You will work with product and design partners. Applicants must be authorized to work in the United States without the need for sponsorship now or in the future. We offer flexible hours.",
+      "expected": {
+        "route": "exclusion_rule",
+        "decision": "excluded",
+        "quote": "without the need for sponsorship now or in the future"
+      }
+    },
+    {
+      "id": "rule-sponsor-requiring-not-considered",
+      "tags": ["sponsorship"],
+      "source": "posting",
+      "text": "Humongous Example Insurance is hiring a Analytics Engineer to build internal tools. You will work with product and design partners. Candidates who require visa sponsorship now or in the future will not be considered. Apply by Friday.",
+      "expected": {
+        "route": "exclusion_rule",
+        "decision": "excluded",
+        "quote": "Candidates who require visa sponsorship now or in the future will not be considered."
+      }
+    },
+    {
+      "id": "rule-sponsor-must-not-require",
+      "tags": ["sponsorship"],
+      "source": "posting",
+      "text": "Margie Example Travel is hiring a DevOps Engineer to build internal tools. You will work with product and design partners. Applicants must not require sponsorship now or in the future. Competitive equity package.",
+      "expected": {
+        "route": "exclusion_rule",
+        "decision": "excluded",
+        "quote": "Applicants must not require sponsorship now or in the future."
+      }
+    },
+    {
+      "id": "rule-sponsor-none-available",
+      "tags": ["sponsorship"],
+      "source": "posting",
+      "text": "Southridge Example Video needs a video pipeline engineer.\nNo sponsorship is available for this position.\nWe are an equal opportunity employer.",
+      "expected": {
+        "route": "exclusion_rule",
+        "decision": "excluded",
+        "quote": "No sponsorship is available for this position."
+      }
+    },
+    {
+      "id": "rule-opt-not-accepted",
+      "tags": ["opt"],
+      "source": "posting",
+      "text": "Fourth Example Coffee is hiring a Data Analyst to build internal tools. You will work with product and design partners. We do not accept OPT or CPT candidates for this role. Two days per week in office.",
+      "expected": {
+        "route": "exclusion_rule",
+        "decision": "excluded",
+        "quote": "We do not accept OPT or CPT candidates"
+      }
+    },
+    {
+      "id": "rule-opt-not-considered",
+      "tags": ["opt"],
+      "source": "posting",
+      "text": "Nod Example Publishers is hiring a Software Engineer II to build internal tools. You will work with product and design partners. OPT/CPT candidates will not be considered. Please include a cover letter.",
+      "expected": {
+        "route": "exclusion_rule",
+        "decision": "excluded",
+        "quote": "OPT/CPT candidates will not be considered."
+      }
+    },
+    {
+      "id": "rule-form-citizenship",
+      "tags": ["citizenship", "form"],
+      "source": "form",
+      "text": "Are you a U.S. citizen? This position requires U.S. citizenship.",
+      "expected": {
+        "route": "exclusion_rule",
+        "decision": "excluded",
+        "quote": "This position requires U.S. citizenship."
+      }
+    },
+    {
+      "id": "rule-form-cannot-sponsor",
+      "tags": ["sponsorship", "form"],
+      "source": "form",
+      "text": "Work authorization\nNote: We cannot sponsor work visas, now or in the future.",
+      "expected": {
+        "route": "exclusion_rule",
+        "decision": "excluded",
+        "quote": "We cannot sponsor work visas, now or in the future."
+      }
+    },
+    {
+      "id": "sol-visa-assistance",
+      "tags": ["sponsorship"],
+      "source": "posting",
+      "text": "Relecloud Example Media is hiring a Backend Engineer to build internal tools. You will work with product and design partners. We cannot provide visa assistance for this role. Benefits start day one.",
+      "expected": {
+        "route": "sol",
+        "decision": "excluded",
+        "quote": "We cannot provide visa assistance for this role."
+      }
+    },
+    {
+      "id": "sol-permanent-basis",
+      "tags": ["currently_authorized"],
+      "source": "posting",
+      "text": "VanArsdel Example Foods is hiring a Platform Engineer to build internal tools. You will work with product and design partners. Must be authorized to work in the U.S. on a permanent basis. Hybrid in Chicago, IL.",
+      "expected": {
+        "route": "sol",
+        "decision": "excluded",
+        "quote": "Must be authorized to work in the U.S. on a permanent basis."
+      }
+    },
+    {
+      "id": "sol-contingent-citizenship",
+      "tags": ["citizenship"],
+      "source": "posting",
+      "text": "Bellows Example College is hiring a Research Engineer to build internal tools. You will work with product and design partners. Employment is contingent on U.S. citizenship due to federal contract requirements. Start date is flexible.",
+      "expected": {
+        "route": "sol",
+        "decision": "excluded",
+        "quote": "Employment is contingent on U.S. citizenship due to federal contract requirements."
+      }
+    },
+    {
+      "id": "sol-limited-residency",
+      "tags": ["citizenship"],
+      "source": "posting",
+      "text": "Datum Example Corporation is hiring a Infrastructure Engineer to build internal tools. You will work with product and design partners. Position limited to individuals holding U.S. permanent residency or citizenship. Pager rotation shared across eight engineers.",
+      "expected": {
+        "route": "sol",
+        "decision": "excluded",
+        "quote": "Position limited to individuals holding U.S. permanent residency or citizenship."
+      }
+    },
+    {
+      "id": "sol-eligible-indefinitely",
+      "tags": ["currently_authorized"],
+      "source": "posting",
+      "text": "Lamna Example Healthcare is hiring a Software Engineer to build internal tools. You will work with product and design partners. Applicants must be eligible to work for any employer in the US indefinitely. Remote friendly.",
+      "expected": {
+        "route": "sol",
+        "decision": "excluded",
+        "quote": "Applicants must be eligible to work for any employer in the US indefinitely."
+      }
+    },
+    {
+      "id": "sol-export-control",
+      "tags": ["itar"],
+      "source": "posting",
+      "text": "Munson Example Pickles Robotics is hiring a Controls Engineer to build internal tools. You will work with product and design partners. Applicants must meet export control requirements and hold U.S. person status. On-site in San Diego.",
+      "expected": {
+        "route": "sol",
+        "decision": "excluded",
+        "quote": "Applicants must meet export control requirements and hold U.S. person status."
+      }
+    },
+    {
+      "id": "sol-whitespace-quote",
+      "tags": ["sponsorship", "verification"],
+      "source": "posting",
+      "text": "Olympia Example Sports is hiring a iOS Engineer to build internal tools. You will work with product and design partners. Our team is unable to file   new H-1B petitions,\nincluding cap-subject cases. Gym stipend included.",
+      "expected": {
+        "route": "sol",
+        "decision": "excluded",
+        "quote": "unable to file   new H-1B petitions,\nincluding cap-subject cases."
+      },
+      "fakeSol": {
+        "decision": "excluded",
+        "quote": "Our team is unable to file new H-1B petitions, including cap-subject cases."
+      }
+    },
+    {
+      "id": "sol-sponsorship-available",
+      "tags": ["sponsorship", "benign"],
+      "source": "posting",
+      "text": "Wingtip Example Toys is hiring a Backend Engineer to build internal tools. You will work with product and design partners. Visa sponsorship is available for qualified candidates. Hybrid in Seattle.",
+      "expected": {
+        "route": "sol",
+        "decision": "passed",
+        "quote": "Visa sponsorship is available for qualified candidates."
+      }
+    },
+    {
+      "id": "sol-sponsor-h1b-opt",
+      "tags": ["opt", "sponsorship", "benign"],
+      "source": "posting",
+      "text": "Tailwind Example Traders is hiring a Data Scientist to build internal tools. You will work with product and design partners. We sponsor H-1B visas and support employees on OPT and STEM OPT. Annual learning budget.",
+      "expected": {
+        "route": "sol",
+        "decision": "passed",
+        "quote": "We sponsor H-1B visas and support employees on OPT and STEM OPT."
+      }
+    },
+    {
+      "id": "sol-legally-authorized",
+      "tags": ["currently_authorized"],
+      "source": "posting",
+      "text": "First Up Example Consultants is hiring a Software Engineer to build internal tools. You will work with product and design partners. Must be legally authorized to work in the United States. Remote within US time zones.",
+      "expected": {
+        "route": "sol",
+        "decision": "passed",
+        "quote": null
+      }
+    },
+    {
+      "id": "sol-currently-authorized",
+      "tags": ["currently_authorized"],
+      "source": "posting",
+      "text": "Best For You Example Organics is hiring a Full Stack Developer to build internal tools. You will work with product and design partners. Candidates must be currently authorized to work in the U.S. We offer a 401(k) match.",
+      "expected": {
+        "route": "sol",
+        "decision": "passed",
+        "quote": null
+      }
+    },
+    {
+      "id": "sol-negation-no-clearance",
+      "tags": ["clearance", "negation"],
+      "source": "posting",
+      "text": "Consolidated Example Messenger is hiring a Cloud Engineer to build internal tools. You will work with product and design partners. No security clearance is required for this position. Federal clients only use our SaaS product.",
+      "expected": {
+        "route": "sol",
+        "decision": "passed",
+        "quote": null
+      }
+    },
+    {
+      "id": "sol-negation-citizenship-not-required",
+      "tags": ["citizenship", "negation"],
+      "source": "posting",
+      "text": "Proseware Example Health is hiring a Data Engineer to build internal tools. You will work with product and design partners. U.S. citizenship is not required. All work-authorized applicants are welcome.",
+      "expected": {
+        "route": "sol",
+        "decision": "passed",
+        "quote": null
+      }
+    },
+    {
+      "id": "sol-preference-clearance",
+      "tags": ["clearance", "preference"],
+      "source": "posting",
+      "text": "Lucerne Example Publishing is hiring a Systems Engineer to build internal tools. You will work with product and design partners. Active Secret clearance preferred but not required. Some travel to client sites.",
+      "expected": {
+        "route": "sol",
+        "decision": "passed",
+        "quote": null
+      }
+    },
+    {
+      "id": "sol-preference-citizenship",
+      "tags": ["citizenship", "preference"],
+      "source": "posting",
+      "text": "A. Datum Example Labs is hiring a Test Engineer to build internal tools. You will work with product and design partners. U.S. citizenship preferred. Strong Python skills needed.",
+      "expected": {
+        "route": "sol",
+        "decision": "passed",
+        "quote": null
+      }
+    },
+    {
+      "id": "sol-negation-does-not-require",
+      "tags": ["clearance", "negation"],
+      "source": "posting",
+      "text": "Contoso Example Pharmaceuticals is hiring a Bioinformatics Engineer to build internal tools. You will work with product and design partners. This role does not require a security clearance. Lab access training provided.",
+      "expected": {
+        "route": "sol",
+        "decision": "passed",
+        "quote": null
+      }
+    },
+    {
+      "id": "sol-opt-encouraged",
+      "tags": ["opt", "benign"],
+      "source": "posting",
+      "text": "Fabrikam Example Residences is hiring a Junior Developer to build internal tools. You will work with product and design partners. International candidates on F-1 OPT are encouraged to apply. Mentorship program included.",
+      "expected": {
+        "route": "sol",
+        "decision": "passed",
+        "quote": null
+      }
+    },
+    {
+      "id": "sol-authorized-reseller",
+      "tags": ["benign"],
+      "source": "posting",
+      "text": "Trey Example Retail is hiring a E-commerce Engineer to build internal tools. You will work with product and design partners. We are an authorized reseller of cloud software. Bonus eligible.",
+      "expected": {
+        "route": "sol",
+        "decision": "passed",
+        "quote": null
+      }
+    },
+    {
+      "id": "sol-immigration-practice",
+      "tags": ["benign"],
+      "source": "posting",
+      "text": "Northwind Example Legal is hiring a software engineer to support its immigration law practice group. You will automate case intake. Hybrid in Boston.",
+      "expected": {
+        "route": "sol",
+        "decision": "passed",
+        "quote": null
+      }
+    },
+    {
+      "id": "sol-residents-remote",
+      "tags": ["benign"],
+      "source": "posting",
+      "text": "Woodgrove Example Credit Union is hiring a Payments Engineer to build internal tools. You will work with product and design partners. Remote for residents of Washington, Oregon or California. Paid parental leave.",
+      "expected": {
+        "route": "sol",
+        "decision": "passed",
+        "quote": null
+      }
+    },
+    {
+      "id": "sol-conflict-tn-h1b",
+      "tags": ["sponsorship", "conflict"],
+      "source": "posting",
+      "text": "Litware Example Analytics is hiring a Data Platform Engineer to build internal tools. You will work with product and design partners. While we do not sponsor TN visas, H-1B sponsorship is available for this role. Quarterly offsites.",
+      "expected": {
+        "route": "sol",
+        "decision": "passed",
+        "quote": "H-1B sponsorship is available for this role."
+      }
+    },
+    {
+      "id": "sol-form-future-sponsorship-question",
+      "tags": ["sponsorship", "form"],
+      "source": "form",
+      "text": "Will you now or in the future require sponsorship for employment visa status (e.g., H-1B status)?",
+      "expected": {
+        "route": "sol",
+        "decision": "passed",
+        "quote": null
+      }
+    },
+    {
+      "id": "sol-form-authorized-question",
+      "tags": ["currently_authorized", "form"],
+      "source": "form",
+      "text": "Are you legally authorized to work in the United States?",
+      "expected": {
+        "route": "sol",
+        "decision": "passed",
+        "quote": null
+      }
+    },
+    {
+      "id": "sol-no-sponsorship-required",
+      "tags": ["sponsorship", "negation"],
+      "source": "posting",
+      "text": "Alpine Example Analytics is hiring a Software Engineer to build internal tools. You will work with product and design partners. No sponsorship required. Flexible PTO.",
+      "expected": {
+        "route": "sol",
+        "decision": "review",
+        "quote": "No sponsorship required."
+      }
+    },
+    {
+      "id": "sol-unable-at-this-time",
+      "tags": ["sponsorship", "hedge"],
+      "source": "posting",
+      "text": "Blue Yonder Example Logistics is hiring a Routing Engineer to build internal tools. You will work with product and design partners. We are unable to sponsor visas at this time. Four-day work week pilot.",
+      "expected": {
+        "route": "sol",
+        "decision": "review",
+        "quote": "We are unable to sponsor visas at this time."
+      }
+    },
+    {
+      "id": "sol-may-require-clearance",
+      "tags": ["clearance", "hedge"],
+      "source": "posting",
+      "text": "City Power Example Grid is hiring a SCADA Engineer to build internal tools. You will work with product and design partners. Some positions may require a security clearance. On-site in Albuquerque.",
+      "expected": {
+        "route": "sol",
+        "decision": "review",
+        "quote": "Some positions may require a security clearance."
+      }
+    },
+    {
+      "id": "sol-transfer-only",
+      "tags": ["sponsorship"],
+      "source": "posting",
+      "text": "Graphic Example Studios is hiring a Graphics Engineer to build internal tools. You will work with product and design partners. We support transfers of existing H-1B visas only. Equipment provided.",
+      "expected": {
+        "route": "sol",
+        "decision": "review",
+        "quote": "We support transfers of existing H-1B visas only."
+      }
+    },
+    {
+      "id": "sol-without-sponsorship",
+      "tags": ["sponsorship", "currently_authorized"],
+      "source": "posting",
+      "text": "Humongous Example Robotics is hiring a Robotics Engineer to build internal tools. You will work with product and design partners. Candidates must be able to work without sponsorship. Relocation offered.",
+      "expected": {
+        "route": "sol",
+        "decision": "review",
+        "quote": "Candidates must be able to work without sponsorship."
+      }
+    },
+    {
+      "id": "sol-must-not-require-employer",
+      "tags": ["sponsorship"],
+      "source": "posting",
+      "text": "Margie Example Cruises is hiring a Booking Engineer to build internal tools. You will work with product and design partners. Must not require employer sponsorship to work in the US. Travel perks.",
+      "expected": {
+        "route": "sol",
+        "decision": "review",
+        "quote": "Must not require employer sponsorship to work in the US."
+      }
+    },
+    {
+      "id": "sol-conflict-opt-welcome",
+      "tags": ["sponsorship", "opt", "conflict"],
+      "source": "posting",
+      "text": "Southridge Example Audio is hiring a DSP Engineer to build internal tools. You will work with product and design partners. We do not sponsor visas. OPT candidates are welcome to apply. Hybrid in Austin.",
+      "expected": {
+        "route": "sol",
+        "decision": "review",
+        "quote": "We do not sponsor visas."
+      }
+    },
+    {
+      "id": "sol-depending-on-client",
+      "tags": ["citizenship", "clearance", "hedge"],
+      "source": "posting",
+      "text": "Fourth Example Consulting is hiring a Consultant Engineer to build internal tools. You will work with product and design partners. U.S. citizenship or the ability to obtain a clearance may be required depending on client. Travel up to 50%.",
+      "expected": {
+        "route": "sol",
+        "decision": "review",
+        "quote": "U.S. citizenship or the ability to obtain a clearance may be required depending on client."
+      }
+    },
+    {
+      "id": "sol-form-revealed-hedge",
+      "tags": ["sponsorship", "form", "hedge"],
+      "source": "form",
+      "text": "Please note: for some client assignments we may not be able to support future visa sponsorship.",
+      "expected": {
+        "route": "sol",
+        "decision": "review",
+        "quote": "for some client assignments we may not be able to support future visa sponsorship."
+      }
+    },
+    {
+      "id": "sol-hallucinated-quote",
+      "tags": ["verification", "benign"],
+      "source": "posting",
+      "text": "Nod Example Software is hiring a Platform Engineer to build internal tools. You will work with product and design partners. Experience building tools for citizen developers is a plus. Remote in the US.",
+      "expected": {
+        "route": "sol",
+        "decision": "review",
+        "quote": null
+      },
+      "fakeOnly": true,
+      "fakeSol": {
+        "decision": "excluded",
+        "quote": "Must be a U.S. citizen."
+      }
+    },
+    {
+      "id": "sol-quote-without-trigger",
+      "tags": ["verification"],
+      "source": "posting",
+      "text": "Relecloud Example Security is hiring a Security Engineer to build internal tools. You will work with product and design partners. Must pass a background check. Visa status will be verified during onboarding.",
+      "expected": {
+        "route": "sol",
+        "decision": "review",
+        "quote": null
+      },
+      "fakeOnly": true,
+      "fakeSol": {
+        "decision": "excluded",
+        "quote": "Must pass a background check."
+      }
+    },
+    {
+      "id": "sol-invalid-output",
+      "tags": ["verification"],
+      "source": "posting",
+      "text": "VanArsdel Example Mobility is hiring a Mobile Engineer to build internal tools. You will work with product and design partners. Work authorization details are discussed during the recruiter screen. Hybrid in Portland.",
+      "expected": {
+        "route": "sol",
+        "decision": "review",
+        "quote": null
+      },
+      "fakeOnly": true,
+      "fakeSol": "invalid_output"
+    },
+    {
+      "id": "pass-plain-backend",
+      "tags": ["benign"],
+      "source": "posting",
+      "text": "Bellows Example Robotics is hiring a Backend Engineer to build internal tools. You will work with product and design partners. Build data pipelines in Python. Hybrid in Austin, TX. Competitive salary and 401(k).",
+      "expected": {
+        "route": "no_trigger",
+        "decision": "passed",
+        "quote": null
+      }
+    },
+    {
+      "id": "pass-opt-in-lowercase",
+      "tags": ["benign", "opt"],
+      "source": "posting",
+      "text": "Datum Example Mail is hiring a Email Platform Engineer to build internal tools. You will work with product and design partners. You will build opt in and opt-out preference centers. Remote within North America.",
+      "expected": {
+        "route": "no_trigger",
+        "decision": "passed",
+        "quote": null
+      }
+    },
+    {
+      "id": "pass-options-trading",
+      "tags": ["benign"],
+      "source": "posting",
+      "text": "Lamna Example Capital is hiring a Low-latency Engineer to build internal tools. You will work with product and design partners. Our team optimizes options trading systems. Optional on-call bonus.",
+      "expected": {
+        "route": "no_trigger",
+        "decision": "passed",
+        "quote": null
+      }
+    },
+    {
+      "id": "pass-clear-communication",
+      "tags": ["benign"],
+      "source": "posting",
+      "text": "Munson Example Logistics is hiring a Support Engineer to build internal tools. You will work with product and design partners. Clear communication skills required. Clean driving record a plus.",
+      "expected": {
+        "route": "no_trigger",
+        "decision": "passed",
+        "quote": null
+      }
+    },
+    {
+      "id": "pass-community-events",
+      "tags": ["benign"],
+      "source": "posting",
+      "text": "Olympia Example Fitness is hiring a Mobile Developer to build internal tools. You will work with product and design partners. We host community hackathons and meetups. Unlimited PTO and a home office stipend.",
+      "expected": {
+        "route": "no_trigger",
+        "decision": "passed",
+        "quote": null
+      }
+    },
+    {
+      "id": "pass-security-engineering",
+      "tags": ["benign"],
+      "source": "posting",
+      "text": "Wingtip Example Security is hiring a Application Security Engineer to build internal tools. You will work with product and design partners. Perform threat modeling and code review. Experience with SOC 2 audits.",
+      "expected": {
+        "route": "no_trigger",
+        "decision": "passed",
+        "quote": null
+      }
+    },
+    {
+      "id": "pass-us-remote",
+      "tags": ["benign"],
+      "source": "posting",
+      "text": "Tailwind Example Health is hiring a Staff Engineer to build internal tools. You will work with product and design partners. Remote - US. Must be able to overlap with Pacific time.",
+      "expected": {
+        "route": "no_trigger",
+        "decision": "passed",
+        "quote": null
+      }
+    },
+    {
+      "id": "pass-form-benign",
+      "tags": ["benign", "form"],
+      "source": "form",
+      "text": "Upload your resume. LinkedIn profile URL. How did you hear about us?",
+      "expected": {
+        "route": "no_trigger",
+        "decision": "passed",
+        "quote": null
+      }
+    },
+    {
+      "id": "pass-form-salary",
+      "tags": ["benign", "form"],
+      "source": "form",
+      "text": "What are your salary expectations? When can you start?",
+      "expected": {
+        "route": "no_trigger",
+        "decision": "passed",
+        "quote": null
+      }
+    },
+    {
+      "id": "pass-equal-opportunity",
+      "tags": ["benign"],
+      "source": "posting",
+      "text": "First Up Example Bank is hiring a Software Engineer to build internal tools. You will work with product and design partners. We are an equal opportunity employer and value diversity of background. Reasonable accommodations are available on request.",
+      "expected": {
+        "route": "no_trigger",
+        "decision": "passed",
+        "quote": null
+      }
+    }
+  ]
+}

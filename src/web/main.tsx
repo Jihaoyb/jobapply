@@ -4,6 +4,7 @@ import type { Job, Ticket } from '../shared/contracts.js';
 import { api } from './api.js';
 import { AnswersPanel } from './answers/AnswersPanel.js';
 import { ReportPanel } from './report/ReportPanel.js';
+import { EligibilityPanel } from './eligibility/EligibilityPanel.js';
 import './style.css';
 import { OutreachPanel } from './outreach/OutreachPanel.js';
 
@@ -366,6 +367,7 @@ function Dashboard() {
         <SavedJobs jobs={jobs} />
         <Pairings />
       </div>
+      <EligibilityPanel onChanged={refresh} />
       <PostingForm onSaved={refresh} />
       <AnswersPanel />
       <ReportPanel />
