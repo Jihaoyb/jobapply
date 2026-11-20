@@ -1,6 +1,6 @@
 # Jobapply
 
-P1 foundation for the [build graph](docs/build-graph.md): private capture dashboard, paired Chrome extension, PostgreSQL ledger, shared contracts and a Railway deployment configuration. No applications are submitted and no model call runs during capture. P2 modules are intentionally not implemented.
+P1 foundation for the [build graph](docs/build-graph.md): private capture dashboard, paired Chrome extension, PostgreSQL ledger, shared contracts and a Railway deployment configuration. No applications are submitted and no model call runs during capture. P2 core lanes are built on fixtures (see [P2 status](#p2-status)).
 
 ## Run locally
 
@@ -50,14 +50,23 @@ npm test
 npm run build
 ```
 
-Tests run the real SQL migration against embedded PostgreSQL and exercise Fastify HTTP boundaries with synthetic fixtures: capture persistence and retries, unsupported hosts, missing/invalid/revoked/wrong-owner tokens, CSRF, owner isolation, paired pauses, model provenance/usage and extension Yes/No. No external credentials or live applications are needed. Browser-check the unpacked Chrome popup separately; the test suite covers its decision/request core, not the Chrome permission UI.
+Tests run the real SQL migration against embedded PostgreSQL and exercise Fastify HTTP boundaries with synthetic fixtures: capture persistence and retries, unsupported hosts, missing/invalid/revoked/wrong-owner tokens, CSRF, owner isolation, paired pauses, model provenance/usage and extension Yes/No. No external credentials or live applications are needed. P2 tests use fakes for OpenAI, Apollo and SMTP; no test makes a network call.
+
+Offline harnesses (also run by the test suite) and their human-run live variants:
+
+````sh
+npm run eligibility:replay -- --fake   # eligibility labeled set; live run records the Sol baseline (docs/p2/eligibility.md)
+npm run answers:calibrate              # answer-equivalence calibration; add -- --live for the threshold (docs/p2/answers.md)
+# Live Apollo/Gmail checks (spend credits / send mail; see docs/p2/outreach.md):
+node --env-file-if-exists=.env --import tsx src/server/outreach/verify-cli.ts apollo|smtp
+``` Browser-check the unpacked Chrome popup separately; the test suite covers its decision/request core, not the Chrome permission UI.
 
 ## Deploy the pilot to Railway
 
 1. Create a Railway project with a PostgreSQL service and a service from this repository. The checked-in `Dockerfile` and `railway.json` build the dashboard and server.
 2. Set the app service’s `DATABASE_URL` to the Postgres service reference `${{Postgres.DATABASE_URL}}` (adjust the service name if renamed).
 3. Set `NODE_ENV=production`, `PILOT_EMAIL`, `PILOT_PASSWORD_HASH`, and `APP_ORIGIN=https://<your-public-domain>` (no trailing slash). Railway supplies `PORT`. The server runs its versioned SQL migration before listening. Password changes invalidate existing dashboard sessions.
-4. Keep provider credentials in Railway service variables only. Capture does not require them. Future lanes consume `OPENAI_API_KEY`, `OPENAI_SOL_MODEL` and `OPENAI_LUNA_MODEL` through the shared server wrapper. Do not add provider credentials to Vite variables, extension files, or pairing JSON. Apollo/SMTP and private object storage belong to later issues.
+4. Keep provider credentials in Railway service variables only. Capture does not require them. Future lanes consume `OPENAI_API_KEY`, `OPENAI_SOL_MODEL` and `OPENAI_LUNA_MODEL` through the shared server wrapper. Do not add provider credentials to Vite variables, extension files, or pairing JSON. Outreach reads `APOLLO_API_KEY` and the `GMAIL_*` variables (see `.env.example`); private object storage belongs to a later issue.
 5. Wait for `/healthz` to pass, sign in, pair Chrome and capture a synthetic posting. HTTPS is required outside localhost; production cookies are HttpOnly, Secure and SameSite=Strict.
 6. For a repeatable HTTP smoke test, set `APP_ORIGIN`, `SMOKE_EMAIL`, and `SMOKE_PASSWORD` locally and run `npm run smoke`. It checks pairing, capture, retries and missing/wrong-owner/revoked credentials. It leaves **one clearly labeled synthetic capture**, revokes its temporary pairing token and logs out. It never submits a job application.
 
@@ -66,3 +75,8 @@ The Railway deployment and unpacked Chrome acceptance checks are **not yet verif
 ## Contracts for P2
 
 Read [contracts v1](docs/contracts.md) before implementing a lane. Runtime schemas and types live in `src/shared/contracts.ts`; SQL invariants are in `src/server/migrations/`. Employer identity resolution and queue dispatch begin in P2. A captured job has a nullable canonical employer ID until resolved; it cannot enter a live application flow in P1.
+
+## P2 status
+
+P2 core lanes are merged on fixtures: employer identity, history import and cap (002–004), eligibility (005), answer bank (006), outreach (010–012) and the pilot report (013a). Lane notes are in `docs/p2/`; cross-lane policies (one open ticket per job, merges, Defer, queue → eligibility hand-off) are in [docs/p2/integration.md](docs/p2/integration.md). Live application flows (007–009) and live-credential checks are still pending.
+````

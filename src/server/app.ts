@@ -20,6 +20,12 @@ import {
   resolveTicket,
   resolutionInput,
 } from './ledger.js';
+import { registerAnswerRoutes } from './answers/routes.js';
+import { registerReportRoutes } from './report/routes.js';
+import { registerOutreachRoutes } from './outreach/routes.js';
+import { registerEligibilityRoutes } from './eligibility/routes.js';
+import { registerIdentityRoutes } from './identity/routes.js';
+import { eligibilityQueueGate } from './screening.js';
 
 export interface AppConfig {
   origin: string;
@@ -254,6 +260,11 @@ export async function createApp(db: Database, config: AppConfig) {
       resolutionInput.parse(req.body),
     );
   });
+  await registerEligibilityRoutes(app, db, {
+    dashboardOwner,
+    // Sol retries go through the same pre-eligibility queue gate as the worker path.
+    eligibility: { queueGate: eligibilityQueueGate },
+  });
   app.get('/api/extension/:ownerId/pairing', async (req) => {
     const owner = id.parse((req.params as { ownerId: string }).ownerId);
     return { applicantId: await extensionOwner(req, owner) };
@@ -263,7 +274,11 @@ export async function createApp(db: Database, config: AppConfig) {
     await extensionOwner(req, owner);
     return captureJob(db, owner, captureInput.parse(req.body), 'extension');
   });
+  await registerAnswerRoutes(app, db, { dashboardOwner });
+  await registerReportRoutes(app, db, dashboardOwner);
+  await registerOutreachRoutes(app, db, dashboardOwner, config);
   // The extension credential intentionally has no access to ledger read/admin APIs.
+  await registerIdentityRoutes(app, db, { dashboardOwner });
   if (config.staticRoot) {
     await app.register(staticFiles, { root: config.staticRoot });
     app.get('/', (_req, reply) => reply.sendFile('index.html'));
